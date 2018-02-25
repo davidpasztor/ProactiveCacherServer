@@ -25,7 +25,7 @@ function getThumbnails(youtubeUrl){
         // Downloads available thumbnail.
         all: false,
         // The directory to save the downloaded files in.
-        cwd: __dirname+'/thumbnails',
+        cwd: __dirname+'/storage/thumbnails',
     };
     youtubedl.getThumbs(youtubeUrl, options, function(err, files) {
         if (err) throw err;
@@ -33,7 +33,9 @@ function getThumbnails(youtubeUrl){
     });
 }
 
-function downloadVideo(youtubeUrl){
+function uploadVideo(youtubeUrl){
+	// Should probably save videos based on their IDs, if file exists with given
+	// ID, don't download the video again, same for thumbnails
     var video = youtubedl(youtubeUrl);
     // Called when the download starts
     video.on('info', function(info) {
@@ -41,11 +43,13 @@ function downloadVideo(youtubeUrl){
         console.log('filename: ' + info._filename);
         console.log('title: ' + info.title);
         console.log('size: ' + info.size);
+		console.log('id: ' + info.id);
         // Save downloaded video
-        video.pipe(fs.createWriteStream('./videos/'+ info.title + 'mp4'));
+        video.pipe(fs.createWriteStream('./storage/videos/'+ info.title + '.mp4'));
     });
 }
 
+// Make these function available from other files
 module.exports.getThumbnails = getThumbnails;
-module.exports.downloadVideo = downloadVideo;
+module.exports.uploadVideo = uploadVideo;
 module.exports.getVideoInfo = getVideoInfo;

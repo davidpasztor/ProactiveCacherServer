@@ -2,9 +2,10 @@
   "name": "cacheserver",
   "version": "1.0.0",
   "description": "Backend server for ProactiveCacher",
-  "private":true,
+  "private": true,
   "main": "index.js",
   "dependencies": {
+    "express": "^4.16.2",
     "youtube-dl": "^1.12.2"
   },
   "devDependencies": {},
