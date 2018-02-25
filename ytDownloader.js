@@ -20,17 +20,32 @@ function getVideoInfo(youtubeUrl){
     return promise;
 }
 
+function getThumbnails(youtubeUrl){
+    var options = {
+        // Downloads available thumbnail.
+        all: false,
+        // The directory to save the downloaded files in.
+        cwd: __dirname+'/thumbnails',
+    };
+    youtubedl.getThumbs(youtubeUrl, options, function(err, files) {
+        if (err) throw err;
+        console.log('thumbnail file downloaded:', files);
+    });
+}
+
 function downloadVideo(youtubeUrl){
     var video = youtubedl(youtubeUrl);
     // Called when the download starts
     video.on('info', function(info) {
         console.log('Download started');
         console.log('filename: ' + info._filename);
+        console.log('title: ' + info.title);
         console.log('size: ' + info.size);
         // Save downloaded video
-        video.pipe(fs.createWriteStream('./videos/'+info._filename));
+        video.pipe(fs.createWriteStream('./videos/'+ info.title + 'mp4'));
     });
 }
 
+module.exports.getThumbnails = getThumbnails;
 module.exports.downloadVideo = downloadVideo;
 module.exports.getVideoInfo = getVideoInfo;
