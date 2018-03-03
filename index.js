@@ -22,15 +22,15 @@ app.get('/storage', (req,res) => res.send('GET request to storage'));
 
 // Upload youtube video to server
 app.post('/storage', function(req,res){
-	// In the future might want to check if the request has the expected format before doing any processing
 	let videoUrlString = req.body.url;
+	// No URL parameter in request body, send error response
 	if (videoUrlString === undefined){
 		res.status(400).send("No URL in request");
 	} else {
 		let videoUrl = null;
 		try {
 			videoUrl = new URL(videoUrlString);	
-		} catch (e) {
+		} catch (e) {	// Invalid URL, send error response
 			console.log(e);
 			res.status(400).send("URL "+videoUrlString+" is not valid");
 		}
@@ -41,9 +41,11 @@ app.post('/storage', function(req,res){
 			let matches = youtubeIDregex.exec(videoUrl.search)
 			if (matches  !== null){
 				let videoID = matches[1];
+				// Check if video is already on the server, only download it
+				// if it wasn't added before
 				realmHandler.getVideoWithID(videoID).then(video=>{
 					if (video === undefined){
-						ytDownloader.uploadVideo(videoUrlString);
+						ytDownloader.uploadVideo(videoUrlString, videoID);
 						res.send("Download of " + videoUrl + " started");
 					} else {
 						res.send("Video is already saved on server");

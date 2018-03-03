@@ -1,4 +1,5 @@
 const fs = require('fs');
+const {URL} = require('url');
 const youtubedl = require('youtube-dl');
 const realmHandler = require('./RealmHandler');
 
@@ -22,7 +23,7 @@ function getVideoInfo(youtubeUrl){
 }
 
 // Download the thumbnail image for a youtube video
-function getThumbnails(youtubeUrl){
+function getThumbnails(youtubeUrl,youtubeID){
     var options = {
         // Downloads available thumbnail.
         all: false,
@@ -31,17 +32,21 @@ function getThumbnails(youtubeUrl){
     };
     youtubedl.getThumbs(youtubeUrl, options, function(err, files) {
         if (err) throw err;
-        console.log('thumbnail file downloaded:', files);
+        //console.log('thumbnail file downloaded:', files);
+		let defaultThumbnailUrlString = __dirname+'/storage/thumbnails/'+files[0];
+		let newThumbnailUrlString = __dirname+'/storage/thumbnails/'+youtubeID+'.jpg';
+		fs.rename(defaultThumbnailUrlString,newThumbnailUrlString,function(err){
+			if (err) throw err;
+		});
     });
 }
 
 // Upload a Youtube video from the supplied link to the server without downloading
 // it to a device first
-function uploadVideo(youtubeUrl){
-	// Should probably save videos based on their IDs, if file exists with given
-	// ID, don't download the video again, same for thumbnails
+function uploadVideo(youtubeUrl,youtubeID){
     var video = youtubedl(youtubeUrl);
-	getThumbnails(youtubeUrl);
+	// Download video thumbnail
+	getThumbnails(youtubeUrl,youtubeID);
     // Called when the download starts
     video.on('info', function(info) {
         console.log('Download started');
@@ -49,16 +54,17 @@ function uploadVideo(youtubeUrl){
         console.log('title: ' + info.title);
         console.log('size: ' + info.size);
 		console.log('id: ' + info.id);
+		// Add video to Realm
+		realmHandler.addVideo(info.id,info.title,__dirname+'/storage/video/'+
+			youtubeID+'.mp4',__dirname+'/storage/thumbnails/'+youtubeID+'.jpg');
         // Save downloaded video
-		// TODO: should be checking if the video exists in Realm or not
-		// before starting the download
-		realmHandler.addVideo(info.id,info.title,'./storage/video/'+info.id+
-		'.mp4',__dirname+'/storage/thumbnails/'+info._filename+'.jpg');
-        video.pipe(fs.createWriteStream('./storage/videos/'+ info.id + '.mp4'));
+        video.pipe(fs.createWriteStream(__dirname+
+			'/storage/videos/'+youtubeID+'.mp4'));
     });
 }
 
 // Make these function available from other files
-module.exports.getThumbnails = getThumbnails;
-module.exports.uploadVideo = uploadVideo;
-module.exports.getVideoInfo = getVideoInfo;
+module.exports = {
+	getThumbnails, uploadVideo, getVideoInfo
+}
+
