@@ -1,5 +1,6 @@
-var fs = require('fs');
-var youtubedl = require('youtube-dl');
+const fs = require('fs');
+const youtubedl = require('youtube-dl');
+const realmHandler = require('./RealmHandler');
 
 function getVideoInfo(youtubeUrl){
     var promise = { hasRun: false, result: null };
@@ -20,6 +21,7 @@ function getVideoInfo(youtubeUrl){
     return promise;
 }
 
+// Download the thumbnail image for a youtube video
 function getThumbnails(youtubeUrl){
     var options = {
         // Downloads available thumbnail.
@@ -33,10 +35,13 @@ function getThumbnails(youtubeUrl){
     });
 }
 
+// Upload a Youtube video from the supplied link to the server without downloading
+// it to a device first
 function uploadVideo(youtubeUrl){
 	// Should probably save videos based on their IDs, if file exists with given
 	// ID, don't download the video again, same for thumbnails
     var video = youtubedl(youtubeUrl);
+	getThumbnails(youtubeUrl);
     // Called when the download starts
     video.on('info', function(info) {
         console.log('Download started');
@@ -45,7 +50,11 @@ function uploadVideo(youtubeUrl){
         console.log('size: ' + info.size);
 		console.log('id: ' + info.id);
         // Save downloaded video
-        video.pipe(fs.createWriteStream('./storage/videos/'+ info.title + '.mp4'));
+		// TODO: should be checking if the video exists in Realm or not
+		// before starting the download
+		realmHandler.addVideo(info.id,info.title,'./storage/video/'+info.id+
+		'.mp4',__dirname+'/storage/thumbnails/'+info._filename+'.jpg');
+        video.pipe(fs.createWriteStream('./storage/videos/'+ info.id + '.mp4'));
     });
 }
 
