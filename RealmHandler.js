@@ -7,18 +7,18 @@ const VideoSchema = {
 	primaryKey: 'youtubeID',
     properties: {
         youtubeID: 'string',
-        name: 'string',
+        title: 'string',
         filePath: 'string?',
         thumbnailPath: 'string?'
     }
 };
 
-function addVideo(id,name,filePath,thumbnailPath){
+function addVideo(id,title,filePath,thumbnailPath){
 	Realm.open({schema: [VideoSchema]}).then(realm => {
 		try {
 			realm.write( ()=>{
 				if (realm.objectForPrimaryKey('Video',id) == undefined) {
-					realm.create('Video',{youtubeID:id,name:name,filePath:
+					realm.create('Video',{youtubeID:id,title:title,filePath:
 						filePath,thumbnailPath:thumbnailPath},true);
 				} else {
 					console.log('Video with id: '+id+' already exists');

@@ -55,7 +55,7 @@ function uploadVideo(youtubeUrl,youtubeID){
         console.log('size: ' + info.size);
 		console.log('id: ' + info.id);
 		// Add video to Realm
-		realmHandler.addVideo(info.id,info.title,__dirname+'/storage/video/'+
+		realmHandler.addVideo(info.id,info.title,__dirname+'/storage/videos/'+
 			youtubeID+'.mp4',__dirname+'/storage/thumbnails/'+youtubeID+'.jpg');
         // Save downloaded video
         video.pipe(fs.createWriteStream(__dirname+

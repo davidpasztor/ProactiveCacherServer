@@ -6,6 +6,8 @@ const express = require('express');
 const path = require('path');
 const bodyParser = require('body-parser');
 const realmHandler = require('./RealmHandler');
+const fs = require('fs');
+const streamViewer = require('./streamViewer');
 
 // Create Express app and set its port to 3000 by default
 var app = express();
@@ -64,11 +66,91 @@ app.post('/storage', function(req,res){
 // Get a list of available videos
 app.get('/videos', function(req,res){
 	realmHandler.getVideos().then(videos=>{
-		res.send(videos);
+		res.send(Array.from(videos));
 	}).catch(error=>{
 		console.log(error);
 		res.status(500).send(error);
 	});
+});
+
+// Get thumbnail image for video
+app.get('/thumbnail', function(req,res){
+	let videoID = req.query.videoID
+	// Check that videoID is not undefined or null
+	if (videoID !== undefined && videoID){
+		realmHandler.getVideoWithID(videoID).then(video=>{
+			if (video !== undefined){
+				res.sendFile(video.thumbnailPath);
+			} else {
+				res.status(401).send("Invalid videoID");
+			}
+		}).catch(error=>{
+			console.log(error);
+			res.status(500).send(error);
+		});
+	} else {
+		res.status(401).send("No videoID in query");
+	}
+});
+
+app.get('/startStream', function(req,res){
+	res.send(streamViewer.createHtmlPlayer(req.query.videoID));
+	//res.sendFile(__dirname+'/streamViewer.htm');
+});
+
+// Stream video
+app.get('/stream',function(req,res){
+	let videoID = req.query.videoID
+	if (videoID !== undefined && videoID){
+		realmHandler.getVideoWithID(videoID).then(video=>{
+			if (video !== undefined, video.filePath != null){
+				// Get size information of video
+				fs.stat(video.filePath, function(err,stats){
+					if (err) {
+						res.status(404).send(err);
+					} else {
+						// Range of video requested
+						let range = req.headers.range;
+						if (!range){
+							const head = {
+							  'Content-Length': stats.size,
+							  'Content-Type': 'video/mp4',
+							}
+							res.writeHead(200, head)
+							fs.createReadStream(video.filePath).pipe(res)
+						} else {
+							let positions = range.replace(/bytes=/, '').split('-');
+							let start = parseInt(positions[0],10);
+							let end = positions[1] ? parseInt(positions[1], 10) : stats.size - 1;
+							let chunksize = (end - start) + 1;
+							let head = {
+								'Content-Range': 'bytes '+start+'-'+end+'/'+stats.size,
+								'Accept-Ranges': 'bytes',
+								'Content-Length': chunksize,
+								'Content-Type': 'video/mp4'
+							}
+							res.writeHead(206,head);
+							let streamPosition = {start:start,end:end};
+							let stream = fs.createReadStream(video.filePath,streamPosition);
+							stream.on('open',function(){
+								stream.pipe(res);
+							});
+							stream.on('error',function(error){
+								res.status(500).send(error);
+							});
+						}
+					}					
+				});
+			} else {
+				res.status(401).send("Invalid videoID");
+			}
+		}).catch(error=>{
+			console.log(error);
+			res.status(500).send(error);
+		});
+	} else {
+		res.status(401).send("No videoID in query");
+	}
 });
 
 // Send 404 for all undefined paths
@@ -80,6 +162,3 @@ app.use(function(err,req,res,next){
 // Start the server
 app.listen(3000, () => console.log('Cache manager listening on port 3000!'));
 
-//var url = 'https://www.youtube.com/watch?v=QNNcl2mEHzQ';
-//ytDownloader.getThumbnails(url);
-//ytDownloader.downloadVideo(url);
