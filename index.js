@@ -94,8 +94,12 @@ app.get('/thumbnail', function(req,res){
 });
 
 app.get('/startStream', function(req,res){
-	res.send(streamViewer.createHtmlPlayer(req.query.videoID));
-	//res.sendFile(__dirname+'/streamViewer.htm');
+	let videoID = req.query.videoID;
+	if (!videoID){	//check if videoID is null or undefined
+		res.status(401).send("No videoID in query");
+	} else {
+		res.send(streamViewer.createHtmlPlayer(videoID));
+	}
 });
 
 // Stream video
