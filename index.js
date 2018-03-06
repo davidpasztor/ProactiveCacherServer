@@ -36,10 +36,8 @@ app.post('/storage', function(req,res){
 			console.log(e);
 			res.status(400).send("URL "+videoUrlString+" is not valid");
 		}
-		if (videoUrl.host != "www.youtube.com"){
-			res.status(400).send("Non-YouTube URL");
-		} else {
-			let youtubeIDregex = /\?v\=(\w+)/;
+        if (videoUrl.host == "www.youtube.com" || videoUrl.host == "youtube.com"){
+            let youtubeIDregex = /\?v\=(\w+)/;
 			let matches = youtubeIDregex.exec(videoUrl.search)
 			if (matches  !== null){
 				let videoID = matches[1];
@@ -59,7 +57,31 @@ app.post('/storage', function(req,res){
 			} else {
 				res.status(400).send("Invalid YouTube URL");
 			}
-		}
+        } else if (videoUrl.host == "youtu.be") {
+            const youtubeIDregex = /\/(\w+)/;
+            const matches = youtubeIDregex.exec(videoUrl.pathname);
+            // TODO: this part is copied exactly from above, should rewrite function
+            if (matches !== null){
+                let videoID = matches[1];
+				// Check if video is already on the server, only download it
+				// if it wasn't added before
+				realmHandler.getVideoWithID(videoID).then(video=>{
+					if (video === undefined){
+						ytDownloader.uploadVideo(videoUrlString, videoID);
+						res.send("Download of " + videoUrl + " started");
+					} else {
+						res.send("Video is already saved on server");
+					}
+				}).catch(error=>{
+					console.log(error);
+					res.status(500).send(error);
+				});
+            } else {
+                res.status(400).send("Invalid YouTube URL "+videoUrl);
+            }
+        } else {
+			res.status(400).send("Non-YouTube URL");
+        }	
 	}
 });
 
@@ -82,21 +104,22 @@ app.get('/thumbnail', function(req,res){
 			if (video !== undefined){
 				res.sendFile(video.thumbnailPath);
 			} else {
-				res.status(401).send("Invalid videoID");
+				res.status(400).send("Invalid videoID");
 			}
 		}).catch(error=>{
 			console.log(error);
 			res.status(500).send(error);
 		});
 	} else {
-		res.status(401).send("No videoID in query");
+		res.status(400).send("No videoID in query");
 	}
 });
 
+// Call this endpoint to get the HTML file for playing the stream
 app.get('/startStream', function(req,res){
 	let videoID = req.query.videoID;
 	if (!videoID){	//check if videoID is null or undefined
-		res.status(401).send("No videoID in query");
+		res.status(400).send("No videoID in query");
 	} else {
 		res.send(streamViewer.createHtmlPlayer(videoID));
 	}
@@ -115,6 +138,8 @@ app.get('/stream',function(req,res){
 					} else {
 						// Range of video requested
 						let range = req.headers.range;
+						//console.log("Requested video range: "+range);
+						// Send the whole video if no range is specified
 						if (!range){
 							const head = {
 							  'Content-Length': stats.size,
@@ -153,7 +178,7 @@ app.get('/stream',function(req,res){
 			res.status(500).send(error);
 		});
 	} else {
-		res.status(401).send("No videoID in query");
+		res.status(400).send("No videoID in query");
 	}
 });
 
