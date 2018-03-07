@@ -58,8 +58,12 @@ function uploadVideo(youtubeUrl,youtubeID){
 		realmHandler.addVideo(info.id,info.title,__dirname+'/storage/videos/'+
 			youtubeID+'.mp4',__dirname+'/storage/thumbnails/'+youtubeID+'.jpg');
         // Save downloaded video
-        video.pipe(fs.createWriteStream(__dirname+
-			'/storage/videos/'+youtubeID+'.mp4'));
+        var fileStream = fs.createWriteStream(__dirname+'/storage/videos/'+
+            youtubeID+'.mp4')
+        video.pipe(fileStream);
+        fileStream.on('finish', function(){
+            console.log("File "+youtubeID+".mp4 saved");
+        });
     });
 }
 
