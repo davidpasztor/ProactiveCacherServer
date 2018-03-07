@@ -5,6 +5,7 @@ const http = require('http');
 const express = require('express');
 const path = require('path');
 const bodyParser = require('body-parser');
+const Realm = require('realm');
 const realmHandler = require('./RealmHandler');
 const fs = require('fs');
 const streamViewer = require('./streamViewer');
@@ -22,9 +23,39 @@ app.use(bodyParser.json());
 app.get('/', (req, res) => res.send('Hello World!'));
 app.get('/storage', (req,res) => res.send('GET request to storage'));
 
+var users = null;
+realmHandler.getUsers().then(fetchedUsers => {
+    users = fetchedUsers;
+}).catch(error => {
+    console.log(error);
+});
+
+// Register new userID
+app.post('/register', function(req,res){
+    let userID = req.body.userID;
+    if (!userID){
+        res.status(400).json({"error":"No userID in request"});
+    } else { 
+        if (!users.filtered('userID == $0',userID).length){
+            realmHandler.createUser(userID).then( ()=> {
+                res.status(206).json({"message":"User "+userID+" successfully created"});
+            }).catch(error => {
+                console.log("Couldn't create user"+error)
+                res.status(500).json({"error":error});
+            });
+        } else {
+            res.status(400).json({"error":"User is already registered"});
+        }
+    }
+});
+
 // Upload youtube video to server
 app.post('/storage', function(req,res){
 	let videoUrlString = req.body.url;
+    let userID = req.headers.user;
+    if (!userID || !users.filtered('userID == $0',userID).length){
+        return res.status(401).json({"error":"Invalid userID"});
+    }
 	// No URL parameter in request body, send error response
 	if (videoUrlString === undefined){
 		res.status(400).send("No URL in request");
@@ -87,16 +118,27 @@ app.post('/storage', function(req,res){
 
 // Get a list of available videos
 app.get('/videos', function(req,res){
+    let userID = req.headers.user;
+    console.log("There are " + users.length + " users registered");
+    console.log(userID + " found " + users.filtered('userID == $0',userID).length + " times");
+    if (!userID || !users.filtered('userID == $0',userID).length){
+        return res.status(401).json({"error":"Invalid userID"});
+    }
+    console.log("User registered, retrieving videos");
 	realmHandler.getVideos().then(videos=>{
 		res.send(Array.from(videos));
 	}).catch(error=>{
 		console.log(error);
-		res.status(500).send(error);
+		res.status(500).json({"error":error});
 	});
 });
 
 // Get thumbnail image for video
 app.get('/thumbnail', function(req,res){
+    let userID = req.headers.user;
+    if (!userID || !users.filtered('userID == $0',userID).length){
+        return res.status(401).json({"error":"Invalid userID"});
+    }
 	let videoID = req.query.videoID
 	// Check that videoID is not undefined or null
 	if (videoID !== undefined && videoID){
@@ -117,6 +159,10 @@ app.get('/thumbnail', function(req,res){
 
 // Call this endpoint to get the HTML file for playing the stream
 app.get('/startStream', function(req,res){
+    let userID = req.headers.user;
+    if (!userID || !users.filtered('userID == $0',userID).length){
+        return res.status(401).json({"error":"Invalid userID"});
+    }
 	let videoID = req.query.videoID;
 	if (!videoID){	//check if videoID is null or undefined
 		res.status(400).send("No videoID in query");
@@ -127,6 +173,12 @@ app.get('/startStream', function(req,res){
 
 // Stream video
 app.get('/stream',function(req,res){
+    // Only for this endpoint userID should be query parameter to allow playing
+    // the video in an AVPlayer using only the URL and not a URLRequest
+    let userID = req.query.user;
+    if (!userID || !users.filtered('userID == $0',userID).length){
+        return res.status(401).json({"error":"Invalid userID"});
+    }
 	let videoID = req.query.videoID
 	if (videoID !== undefined && videoID){
 		realmHandler.getVideoWithID(videoID).then(video=>{
@@ -182,8 +234,35 @@ app.get('/stream',function(req,res){
 	}
 });
 
+// Rate a video
+app.post('/videos/rate', function(req,res){
+    let userID = req.headers.user;
+    if (!userID || !users.filtered('userID == $0',userID).length){
+        return res.status(401).json({"error":"Invalid userID"});
+    }
+    const videoID = req.body.videoID;
+    if (!videoID){
+        res.status(400).send("No videoID in request body");
+    } else {
+        realmHandler.getVideoWithID(videoID).then(video=>{
+			if (video !== undefined){
+				// Create rating
+			} else {
+				res.status(400).send("Invalid videoID");
+			}
+		}).catch(error=>{
+			console.log(error);
+			res.status(500).send(error);
+		});
+    }
+});
+
 // Send 404 for all undefined paths
 app.use(function(err,req,res,next){
+    let userID = req.headers.user;
+    if (!userID || !users.filtered('userID == $0',userID).length){
+        return res.status(401).json({"error":"Invalid userID"});
+    }
 	console.log('Request failed to ' + req.url);
 	res.status(404).send('File not found!');
 });
