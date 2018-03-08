@@ -6,7 +6,7 @@
   "main": "index.js",
   "dependencies": {
     "express": "^4.16.2",
-    "realm": "^2.2.13",
+    "realm": "^2.2.14",
     "youtube-dl": "^1.12.2"
   },
   "devDependencies": {},

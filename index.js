@@ -58,14 +58,14 @@ app.post('/storage', function(req,res){
     }
 	// No URL parameter in request body, send error response
 	if (videoUrlString === undefined){
-		res.status(400).send("No URL in request");
+		res.status(400).json({"error":"No URL in request"});
 	} else {
 		let videoUrl = null;
 		try {
 			videoUrl = new URL(videoUrlString);	
 		} catch (e) {	// Invalid URL, send error response
 			console.log(e);
-			res.status(400).send("URL "+videoUrlString+" is not valid");
+			res.status(400).json({"error":"URL "+videoUrlString+" is not valid "+e});
 		}
         if (videoUrl.host == "www.youtube.com" || videoUrl.host == "youtube.com"){
             let youtubeIDregex = /\?v\=(\w+)/;
@@ -77,16 +77,16 @@ app.post('/storage', function(req,res){
 				realmHandler.getVideoWithID(videoID).then(video=>{
 					if (video === undefined){
 						ytDownloader.uploadVideo(videoUrlString, videoID);
-						res.send("Download of " + videoUrl + " started");
+						res.status(206).json({"success":"Download of " + videoUrl + " started"});
 					} else {
-						res.send("Video is already saved on server");
+						res.json({"message":"Video is already saved on server"});
 					}
 				}).catch(error=>{
 					console.log(error);
-					res.status(500).send(error);
+					res.status(500).json({"error":error});
 				});
 			} else {
-				res.status(400).send("Invalid YouTube URL");
+				res.status(400).json({"error":"Non-YouTube URL"});
 			}
         } else if (videoUrl.host == "youtu.be") {
             const youtubeIDregex = /\/(\w+)/;
@@ -99,19 +99,19 @@ app.post('/storage', function(req,res){
 				realmHandler.getVideoWithID(videoID).then(video=>{
 					if (video === undefined){
 						ytDownloader.uploadVideo(videoUrlString, videoID);
-						res.send("Download of " + videoUrl + " started");
+						res.status(202).json({"success":"Download of " + videoUrl + " started"});
 					} else {
-						res.send("Video is already saved on server");
+						res.json({"message":"Video is already saved on server"});
 					}
 				}).catch(error=>{
 					console.log(error);
-					res.status(500).send(error);
+					res.status(500).json({"error":error});
 				});
             } else {
-                res.status(400).send("Invalid YouTube URL "+videoUrl);
+                res.status(400).json({"error":"Invalid YouTube URL "+videoUrl});
             }
         } else {
-			res.status(400).send("Non-YouTube URL");
+			res.status(400).json({"error":"Non-YouTube URL"});
         }	
 	}
 });
@@ -146,14 +146,14 @@ app.get('/thumbnail', function(req,res){
 			if (video !== undefined){
 				res.sendFile(video.thumbnailPath);
 			} else {
-				res.status(400).send("Invalid videoID");
+				res.status(400).json({"error":"Invalid videoID"});
 			}
 		}).catch(error=>{
 			console.log(error);
-			res.status(500).send(error);
+			res.status(500).json({"error":error});
 		});
 	} else {
-		res.status(400).send("No videoID in query");
+		res.status(400).json({"error":"No videoID in query"});
 	}
 });
 
@@ -165,7 +165,7 @@ app.get('/startStream', function(req,res){
     }
 	let videoID = req.query.videoID;
 	if (!videoID){	//check if videoID is null or undefined
-		res.status(400).send("No videoID in query");
+		res.status(400).json({"error":"No videoID in query"});
 	} else {
 		res.send(streamViewer.createHtmlPlayer(videoID));
 	}
@@ -217,42 +217,49 @@ app.get('/stream',function(req,res){
 								stream.pipe(res);
 							});
 							stream.on('error',function(error){
-								res.status(500).send(error);
+								res.status(500).json({"error":error});
 							});
 						}
 					}					
 				});
 			} else {
-				res.status(401).send("Invalid videoID");
+				res.status(401).json({"error":"Invalid videoID"});
 			}
 		}).catch(error=>{
 			console.log(error);
-			res.status(500).send(error);
+			res.status(500).json({"error":error});
 		});
 	} else {
-		res.status(400).send("No videoID in query");
+		res.status(400).json({"error":"No videoID in query"});
 	}
 });
 
 // Rate a video
 app.post('/videos/rate', function(req,res){
     let userID = req.headers.user;
-    if (!userID || !users.filtered('userID == $0',userID).length){
+    let thisUser = users.filtered('userID == $0',userID);
+    if (!userID || !thisUser){
         return res.status(401).json({"error":"Invalid userID"});
     }
     const videoID = req.body.videoID;
-    if (!videoID){
-        res.status(400).send("No videoID in request body");
+    const rating = req.body.rating;
+    if (!videoID || !rating){
+        res.status(400).json({"error":"No videoID "+videoID+" or rating "+rating+" in request body"});
     } else {
         realmHandler.getVideoWithID(videoID).then(video=>{
 			if (video !== undefined){
 				// Create rating
+                realmHandler.rateVideo(thisUser[0],video,rating).then( ()=>{
+                    res.status(201).json({"message":"Rating saved"});
+                }).catch(error =>{
+                    res.status(500).json({"error":error});
+                });
 			} else {
-				res.status(400).send("Invalid videoID");
+				res.status(400).json({"error":"Invalid videoID"});
 			}
 		}).catch(error=>{
 			console.log(error);
-			res.status(500).send(error);
+			res.status(500).json({"error":error});
 		});
     }
 });
@@ -264,7 +271,7 @@ app.use(function(err,req,res,next){
         return res.status(401).json({"error":"Invalid userID"});
     }
 	console.log('Request failed to ' + req.url);
-	res.status(404).send('File not found!');
+	res.status(404).json({"error":"Invalid endpoint"});
 });
 
 // Start the server

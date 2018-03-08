@@ -16,7 +16,7 @@ const VideoSchema = {
 const RatingSchema = {
 	name: 'Rating',
 	properties: {
-        score: 'int',
+        score: 'double',
 		user: 'User',
 		video: 'Video'
 	}
@@ -111,10 +111,10 @@ function rateVideo(user,video,rating){
             try {
                 realm.write( ()=>{
                     // If there is no previous rating, create one
-                    if (!ratingObject){
+                    if (ratingObject.length == 0){
                         realm.create('Rating',{score:rating,user:user,video:video});
                     } else {    // If there is a previous rating, update its score
-                        ratingObject.score = rating;
+                        ratingObject[0].score = rating;
                     }
                     resolve();
                 });
