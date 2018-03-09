@@ -1,4 +1,5 @@
 'use strict';
+// Import modules
 const {URL} = require('url');
 const ytDownloader = require('./ytDownloader');
 const http = require('http');
@@ -17,6 +18,13 @@ app.set('port',process.env.PORT || 3000);
 // For JSON parsing
 app.use(bodyParser.json());
 
+// HTTP status codes
+const OK = 200;
+const CREATED = 201;
+const BAD_REQ = 400;    // Request is malformed - bad syntax, missing parameters
+const UNAUTH = 401;     // Unauthorized - no or incorrect auth header
+const INT_ERROR = 500;  // Internal server error
+
 // Files can be accessed by submitting calls to "http://IP_addr_here:PORT/storage/file/path/name.extension"
 //app.use('/storage',express.static(path.join(__dirname, 'storage')));
 
@@ -24,7 +32,9 @@ app.get('/', (req, res) => res.send('Hello World!'));
 app.get('/storage', (req,res) => res.send('GET request to storage'));
 
 var users = null;
-realmHandler.getUsers().then(fetchedUsers => {
+realmHandler.performMigration().then( () => {
+    return realmHandler.getUsers();
+}).then(fetchedUsers => {
     users = fetchedUsers;
 }).catch(error => {
     console.log(error);
@@ -34,38 +44,40 @@ realmHandler.getUsers().then(fetchedUsers => {
 app.post('/register', function(req,res){
     let userID = req.body.userID;
     if (!userID){
-        res.status(400).json({"error":"No userID in request"});
+        res.status(BAD_REQ).json({"error":"No userID in request"});
     } else { 
         if (!users.filtered('userID == $0',userID).length){
             realmHandler.createUser(userID).then( ()=> {
-                res.status(206).json({"message":"User "+userID+" successfully created"});
+                res.status(CREATED).json({"message":"User "+userID+" successfully created"});
             }).catch(error => {
                 console.log("Couldn't create user"+error)
-                res.status(500).json({"error":error});
+                res.status(INT_ERROR).json({"error":error});
             });
         } else {
-            res.status(400).json({"error":"User is already registered"});
+            res.status(BAD_REQ).json({"error":"User is already registered"});
         }
     }
 });
+
+
 
 // Upload youtube video to server
 app.post('/storage', function(req,res){
 	let videoUrlString = req.body.url;
     let userID = req.headers.user;
     if (!userID || !users.filtered('userID == $0',userID).length){
-        return res.status(401).json({"error":"Invalid userID"});
+        return res.status(UNAUTH).json({"error":"Invalid userID"});
     }
 	// No URL parameter in request body, send error response
 	if (videoUrlString === undefined){
-		res.status(400).json({"error":"No URL in request"});
+		res.status(BAD_REQ).json({"error":"No URL in request"});
 	} else {
 		let videoUrl = null;
 		try {
 			videoUrl = new URL(videoUrlString);	
 		} catch (e) {	// Invalid URL, send error response
 			console.log(e);
-			res.status(400).json({"error":"URL "+videoUrlString+" is not valid "+e});
+			res.status(BAD_REQ).json({"error":"URL "+videoUrlString+" is not valid "+e});
 		}
         if (videoUrl.host == "www.youtube.com" || videoUrl.host == "youtube.com"){
             let youtubeIDregex = /\?v\=(\w+)/;
@@ -83,10 +95,10 @@ app.post('/storage', function(req,res){
 					}
 				}).catch(error=>{
 					console.log(error);
-					res.status(500).json({"error":error});
+					res.status(INT_ERROR).json({"error":error});
 				});
 			} else {
-				res.status(400).json({"error":"Non-YouTube URL"});
+				res.status(BAD_REQ).json({"error":"Non-YouTube URL"});
 			}
         } else if (videoUrl.host == "youtu.be") {
             const youtubeIDregex = /\/(\w+)/;
@@ -105,13 +117,13 @@ app.post('/storage', function(req,res){
 					}
 				}).catch(error=>{
 					console.log(error);
-					res.status(500).json({"error":error});
+					res.status(INT_ERROR).json({"error":error});
 				});
             } else {
-                res.status(400).json({"error":"Invalid YouTube URL "+videoUrl});
+                res.status(BAD_REQ).json({"error":"Invalid YouTube URL "+videoUrl});
             }
         } else {
-			res.status(400).json({"error":"Non-YouTube URL"});
+			res.status(BAD_REQ).json({"error":"Non-YouTube URL"});
         }	
 	}
 });
@@ -122,14 +134,14 @@ app.get('/videos', function(req,res){
     console.log("There are " + users.length + " users registered");
     console.log(userID + " found " + users.filtered('userID == $0',userID).length + " times");
     if (!userID || !users.filtered('userID == $0',userID).length){
-        return res.status(401).json({"error":"Invalid userID"});
+        return res.status(UNAUTH).json({"error":"Invalid userID"});
     }
     console.log("User registered, retrieving videos");
 	realmHandler.getVideos().then(videos=>{
 		res.send(Array.from(videos));
 	}).catch(error=>{
 		console.log(error);
-		res.status(500).json({"error":error});
+		res.status(INT_ERROR).json({"error":error});
 	});
 });
 
@@ -137,7 +149,7 @@ app.get('/videos', function(req,res){
 app.get('/thumbnail', function(req,res){
     let userID = req.headers.user;
     if (!userID || !users.filtered('userID == $0',userID).length){
-        return res.status(401).json({"error":"Invalid userID"});
+        return res.status(UNAUTH).json({"error":"Invalid userID"});
     }
 	let videoID = req.query.videoID
 	// Check that videoID is not undefined or null
@@ -146,14 +158,14 @@ app.get('/thumbnail', function(req,res){
 			if (video !== undefined){
 				res.sendFile(video.thumbnailPath);
 			} else {
-				res.status(400).json({"error":"Invalid videoID"});
+				res.status(BAD_REQ).json({"error":"Invalid videoID"});
 			}
 		}).catch(error=>{
 			console.log(error);
-			res.status(500).json({"error":error});
+			res.status(INT_ERROR).json({"error":error});
 		});
 	} else {
-		res.status(400).json({"error":"No videoID in query"});
+		res.status(BAD_REQ).json({"error":"No videoID in query"});
 	}
 });
 
@@ -161,11 +173,11 @@ app.get('/thumbnail', function(req,res){
 app.get('/startStream', function(req,res){
     let userID = req.headers.user;
     if (!userID || !users.filtered('userID == $0',userID).length){
-        return res.status(401).json({"error":"Invalid userID"});
+        return res.status(UNAUTH).json({"error":"Invalid userID"});
     }
 	let videoID = req.query.videoID;
 	if (!videoID){	//check if videoID is null or undefined
-		res.status(400).json({"error":"No videoID in query"});
+		res.status(BAD_REQ).json({"error":"No videoID in query"});
 	} else {
 		res.send(streamViewer.createHtmlPlayer(videoID));
 	}
@@ -177,7 +189,7 @@ app.get('/stream',function(req,res){
     // the video in an AVPlayer using only the URL and not a URLRequest
     let userID = req.query.user;
     if (!userID || !users.filtered('userID == $0',userID).length){
-        return res.status(401).json({"error":"Invalid userID"});
+        return res.status(UNAUTH).json({"error":"Invalid userID"});
     }
 	let videoID = req.query.videoID
 	if (videoID !== undefined && videoID){
@@ -217,20 +229,20 @@ app.get('/stream',function(req,res){
 								stream.pipe(res);
 							});
 							stream.on('error',function(error){
-								res.status(500).json({"error":error});
+								res.status(INT_ERROR).json({"error":error});
 							});
 						}
 					}					
 				});
 			} else {
-				res.status(401).json({"error":"Invalid videoID"});
+				res.status(UNAUTH).json({"error":"Invalid videoID"});
 			}
 		}).catch(error=>{
 			console.log(error);
-			res.status(500).json({"error":error});
+			res.status(INT_ERROR).json({"error":error});
 		});
 	} else {
-		res.status(400).json({"error":"No videoID in query"});
+		res.status(BAD_REQ).json({"error":"No videoID in query"});
 	}
 });
 
@@ -239,36 +251,53 @@ app.post('/videos/rate', function(req,res){
     let userID = req.headers.user;
     let thisUser = users.filtered('userID == $0',userID);
     if (!userID || !thisUser){
-        return res.status(401).json({"error":"Invalid userID"});
+        return res.status(UNAUTH).json({"error":"Invalid userID"});
     }
     const videoID = req.body.videoID;
     const rating = req.body.rating;
     if (!videoID || !rating){
-        res.status(400).json({"error":"No videoID "+videoID+" or rating "+rating+" in request body"});
+        res.status(BAD_REQ).json({"error":"No videoID "+videoID+" or rating "+rating+" in request body"});
     } else {
         realmHandler.getVideoWithID(videoID).then(video=>{
 			if (video !== undefined){
 				// Create rating
                 realmHandler.rateVideo(thisUser[0],video,rating).then( ()=>{
-                    res.status(201).json({"message":"Rating saved"});
+                    res.status(CREATED).json({"message":"Rating saved"});
                 }).catch(error =>{
-                    res.status(500).json({"error":error});
+                    res.status(INT_ERROR).json({"error":error});
                 });
 			} else {
-				res.status(400).json({"error":"Invalid videoID"});
+				res.status(BAD_REQ).json({"error":"Invalid videoID"});
 			}
 		}).catch(error=>{
 			console.log(error);
-			res.status(500).json({"error":error});
+			res.status(INT_ERROR).json({"error":error});
 		});
     }
+});
+
+// Upload userlog
+app.post('/userlogs', function(req,res){
+    let userID = req.headers.user;
+    let thisUser = users.filtered('userID == $0',userID);
+    if (!userID || !thisUser){
+        return res.status(UNAUTH).json({"error":"Invalid userID"});
+    }
+    // Parse userlog from request body, then save it to Realm
+    let userLogs = req.body;
+    // Validate the request body
+    realmHandler.addUserLogsForUser(userLogs,thisUser[0]).then( ()=>{
+        res.status(CREATED).json({"message":"UserLogs saved"});
+    }).catch(error=>{
+        res.status(INT_ERROR).json({"error":error});
+    });
 });
 
 // Send 404 for all undefined paths
 app.use(function(err,req,res,next){
     let userID = req.headers.user;
     if (!userID || !users.filtered('userID == $0',userID).length){
-        return res.status(401).json({"error":"Invalid userID"});
+        return res.status(UNAUTH).json({"error":"Invalid userID"});
     }
 	console.log('Request failed to ' + req.url);
 	res.status(404).json({"error":"Invalid endpoint"});
