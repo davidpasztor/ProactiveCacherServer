@@ -34,8 +34,7 @@ const UserLocationSchema = {
     name: 'UserLocation',
     properties: {
         latitude: 'double',
-        longitude: 'double',
-        timestamp: 'date'
+        longitude: 'double'
     }
 };
 
@@ -44,7 +43,8 @@ const UserLogSchema = {
     properties: {
         location: 'UserLocation?',
         batteryState: 'BatteryStateLog?',
-        networkStatus: 'string'
+        networkStatus: 'string',
+        timeStamp: 'date'
     }
 };
 
@@ -62,8 +62,22 @@ const UserSchema = {
 const allSchemas = [VideoSchema,RatingSchema,BatteryStateLogSchema,
     UserLocationSchema,UserLogSchema,UserSchema];
 
+var currentSchemaVersion = 1;
+
+// Perform migration if needed, return the opened Realm instance in case of success
+function performMigration(){
+    return Realm.open({
+        schema: allSchemas,
+        schemaVersion: currentSchemaVersion,
+        migration: (oldRealm, newRealm) => {
+            //Realm will handle the migration itself
+        }
+    })
+}
+
+// Create a new Video object in Realm with the given properties
 function addVideo(id,title,filePath,thumbnailPath){
-	Realm.open({schema: allSchemas}).then(realm => {
+	Realm.open({schema: allSchemas,schemaVersion: currentSchemaVersion}).then(realm => {
 		try {
 			realm.write( ()=>{
 				if (realm.objectForPrimaryKey('Video',id) == undefined) {
@@ -81,9 +95,10 @@ function addVideo(id,title,filePath,thumbnailPath){
 	});
 }
 
+// Return all video objects from Realm as Result<Video> in a Promise
 function getVideos(){
 	return new Promise((resolve,reject) => {
-		Realm.open({schema: allSchemas}).then(realm => {
+		Realm.open({schema: allSchemas,schemaVersion: currentSchemaVersion}).then(realm => {
 			let videos = realm.objects('Video');
 			resolve(videos);
 		}).catch(error => {
@@ -95,7 +110,7 @@ function getVideos(){
 // Return Video object with corresponding ID or undefined if it is not saved to Realm
 function getVideoWithID(primaryKey){
 	return new Promise((resolve,reject) => {
-		Realm.open({schema: allSchemas}).then(realm => {
+		Realm.open({schema: allSchemas,schemaVersion: currentSchemaVersion}).then(realm => {
 			resolve(realm.objectForPrimaryKey('Video',primaryKey));
 		}).catch(error => {
 			reject(error);
@@ -106,7 +121,7 @@ function getVideoWithID(primaryKey){
 // Create/update a rating for an existing User and Video Object
 function rateVideo(user,video,rating){
     return new Promise((resolve,reject) => {
-        Realm.open({schema: allSchemas}).then(realm => {
+        Realm.open({schema: allSchemas,schemaVersion: currentSchemaVersion}).then(realm => {
             let ratingObject = realm.objects('Rating').filtered('user == $0 AND video == $1',user,video);
             try {
                 realm.write( ()=>{
@@ -127,9 +142,11 @@ function rateVideo(user,video,rating){
     });
 }
 
+// Return the User object corresponding to the userID in a Promise or undefined
+// if the user wasn't found
 function getUserWithID(userID){
     return new Promise((resolve,reject) => {
-        Realm.open({schema: allSchemas}).then(realm => {
+        Realm.open({schema: allSchemas,schemaVersion: currentSchemaVersion}).then(realm => {
             resolve(realm.objectForPrimaryKey('User',userID));
         }).catch(error => {
             reject(error);
@@ -137,9 +154,10 @@ function getUserWithID(userID){
     });
 }
 
+// Create a new user object using the given userID and return a Promise<Void>
 function createUser(userID){
     return new Promise((resolve,reject) => {
-        Realm.open({schema: allSchemas}).then(realm => {
+        Realm.open({schema: allSchemas,schemaVersion: currentSchemaVersion}).then(realm => {
             try {
                 realm.write( ()=>{
                     realm.create('User',{userID:userID});
@@ -154,9 +172,10 @@ function createUser(userID){
     });
 }
 
+// Return a Results<User> object containing all Users in a Promise
 function getUsers(){
     return new Promise((resolve,reject) => {
-        Realm.open({schema: allSchemas}).then(realm => {
+        Realm.open({schema: allSchemas,schemaVersion: currentSchemaVersion}).then(realm => {
             resolve(realm.objects('User'));
         }).catch(error => {
             reject(error);
@@ -164,12 +183,33 @@ function getUsers(){
     });
 }
 
+// Add UserLog objects to a User
+function addUserLogsForUser(userLogs,user){
+    return new Promise((resolve,reject) => {
+        Realm.open({schema: allSchemas,schemaVersion: currentSchemaVersion}).then(realm => {
+            try {
+                realm.write( ()=>{
+                    userLogs.forEach(log => user.logs.push(log));
+                    resolve();
+                });
+            } catch (e) {
+                console.log(e);
+            }
+        }).catch(error => {
+            console.log(error);
+        });
+    });
+}
+
 module.exports = {
+    performMigration,
 	addVideo,
 	getVideos,
 	getVideoWithID,
     rateVideo,
     getUserWithID,
     createUser,
-    getUsers
+    getUsers,
+    addUserLogsForUser
 }
+
