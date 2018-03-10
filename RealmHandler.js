@@ -41,13 +41,11 @@ const UserLocationSchema = {
 
 const UserLogSchema = {
     name: 'UserLog',
-	primaryKey: 'timeStampString',
     properties: {
         location: 'UserLocation?',
         batteryState: 'BatteryStateLog?',
         networkStatus: 'string',
         timeStamp: 'date',
-		timeStampString: {type: 'string', default: ""}
     }
 };
 
@@ -65,7 +63,7 @@ const UserSchema = {
 const allSchemas = [VideoSchema,RatingSchema,BatteryStateLogSchema,
     UserLocationSchema,UserLogSchema,UserSchema];
 
-var currentSchemaVersion = 2;
+var currentSchemaVersion = 3;
 
 // Perform migration if needed, return the opened Realm instance in case of success
 function performMigration(){
@@ -73,7 +71,7 @@ function performMigration(){
         schema: allSchemas,
         schemaVersion: currentSchemaVersion,
         migration: (oldRealm, newRealm) => {
-			if (oldRealm.schemaVersion < 2){
+			if (oldRealm.schemaVersion < 2 && currentSchemaVersion == 2){
 				// Need to manually create the timeStampString property,
 				// otherwise it will hold the default value and would be duplicated
 				const oldObjects = oldRealm.objects('UserLog');
@@ -201,10 +199,7 @@ function addUserLogsForUser(userLogs,user){
         Realm.open({schema: allSchemas,schemaVersion: currentSchemaVersion}).then(realm => {
             try {
                 realm.write( ()=>{
-                    userLogs.forEach(log => {
-						log.timeStampString = log.timeStamp;
-						user.logs.push(log);
-					});
+                    userLogs.forEach(log =>user.logs.push(log));
                     resolve();
                 });
             } catch (e) {
