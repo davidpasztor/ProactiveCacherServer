@@ -3,25 +3,6 @@ const {URL} = require('url');
 const youtubedl = require('youtube-dl');
 const realmHandler = require('./RealmHandler');
 
-function getVideoInfo(youtubeUrl){
-    var promise = { hasRun: false, result: null };
-    object.event = youtubedl.getInfo(url, options, function(err, info) {
-        if (err) throw err;
-
-        console.log('id:', info.id);
-        console.log('title:', info.title);
-        console.log('url:', info.url);
-        console.log('thumbnail:', info.thumbnail);
-        console.log('description:', info.description);
-        console.log('filename:', info._filename);
-        console.log('format id:', info.format_id);
-
-        promise.hasRun = true;
-        promise.result = info.title;
-    });
-    return promise;
-}
-
 // Download the thumbnail image for a youtube video
 function getThumbnails(youtubeUrl,youtubeID){
     var options = {
@@ -69,6 +50,7 @@ function uploadVideo(youtubeUrl,youtubeID){
 
 // Make these function available from other files
 module.exports = {
-	getThumbnails, uploadVideo, getVideoInfo
+	getThumbnails,
+	uploadVideo
 }
 

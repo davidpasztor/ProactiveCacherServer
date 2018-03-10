@@ -9,7 +9,8 @@ const VideoSchema = {
         youtubeID: 'string',
         title: 'string',
         filePath: 'string?',
-        thumbnailPath: 'string?'
+        thumbnailPath: 'string?',
+		uploadDate: 'date'
     }
 };
 
@@ -40,11 +41,13 @@ const UserLocationSchema = {
 
 const UserLogSchema = {
     name: 'UserLog',
+	primaryKey: 'timeStampString',
     properties: {
         location: 'UserLocation?',
         batteryState: 'BatteryStateLog?',
         networkStatus: 'string',
-        timeStamp: 'date'
+        timeStamp: 'date',
+		timeStampString: {type: 'string', default: ""}
     }
 };
 
@@ -62,7 +65,7 @@ const UserSchema = {
 const allSchemas = [VideoSchema,RatingSchema,BatteryStateLogSchema,
     UserLocationSchema,UserLogSchema,UserSchema];
 
-var currentSchemaVersion = 1;
+var currentSchemaVersion = 2;
 
 // Perform migration if needed, return the opened Realm instance in case of success
 function performMigration(){
@@ -70,6 +73,15 @@ function performMigration(){
         schema: allSchemas,
         schemaVersion: currentSchemaVersion,
         migration: (oldRealm, newRealm) => {
+			if (oldRealm.schemaVersion < 2){
+				// Need to manually create the timeStampString property,
+				// otherwise it will hold the default value and would be duplicated
+				const oldObjects = oldRealm.objects('UserLog');
+				const newObjects = newRealm.objects('UserLog');
+                for (let i=0;i<oldObjects.length;i++){
+                    newObjects[i].timeStampString = oldObjects[i].timeStamp.toISOString();
+                }
+			}
             //Realm will handle the migration itself
         }
     })
@@ -82,7 +94,7 @@ function addVideo(id,title,filePath,thumbnailPath){
 			realm.write( ()=>{
 				if (realm.objectForPrimaryKey('Video',id) == undefined) {
 					realm.create('Video',{youtubeID:id,title:title,filePath:
-						filePath,thumbnailPath:thumbnailPath},true);
+						filePath,thumbnailPath:thumbnailPath,uploadDate:new Date()},true);
 				} else {
 					console.log('Video with id: '+id+' already exists');
 				}
@@ -189,7 +201,10 @@ function addUserLogsForUser(userLogs,user){
         Realm.open({schema: allSchemas,schemaVersion: currentSchemaVersion}).then(realm => {
             try {
                 realm.write( ()=>{
-                    userLogs.forEach(log => user.logs.push(log));
+                    userLogs.forEach(log => {
+						log.timeStampString = log.timeStamp;
+						user.logs.push(log);
+					});
                     resolve();
                 });
             } catch (e) {
