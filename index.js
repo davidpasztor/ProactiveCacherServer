@@ -25,11 +25,8 @@ const BAD_REQ = 400;    // Request is malformed - bad syntax, missing parameters
 const UNAUTH = 401;     // Unauthorized - no or incorrect auth header
 const INT_ERROR = 500;  // Internal server error
 
-// Files can be accessed by submitting calls to "http://IP_addr_here:PORT/storage/file/path/name.extension"
-//app.use('/storage',express.static(path.join(__dirname, 'storage')));
-
-app.get('/', (req, res) => res.send('Hello World!'));
-app.get('/storage', (req,res) => res.send('GET request to storage'));
+//app.get('/', (req, res) => res.send('Hello World!'));
+//app.get('/storage', (req,res) => res.send('GET request to storage'));
 
 var users = null;
 realmHandler.performMigration().then( () => {
@@ -58,8 +55,6 @@ app.post('/register', function(req,res){
         }
     }
 });
-
-
 
 // Upload youtube video to server
 app.post('/storage', function(req,res){
@@ -289,6 +284,26 @@ app.post('/userlogs', function(req,res){
     realmHandler.addUserLogsForUser(userLogs,thisUser[0]).then( ()=>{
         res.status(CREATED).json({"message":"UserLogs saved"});
     }).catch(error=>{
+        res.status(INT_ERROR).json({"error":error});
+    });
+});
+
+// Upload app usage logs
+app.post('/applogs', function(req,res){
+    let userID = req.headers.user;
+    let thisUser = users.filtered('userID == $0',userID);
+    if (!userID || !thisUser){
+        return res.status(UNAUTH).json({"error":"Invalid userID"});
+    }
+    // Parse app usage logs from request body, then save it to Realm
+    let appLogs = req.body;
+    if (!appLogs){
+        console.log("Empty applogs request");
+        return res.status(BAD_REQ).json({"error":"No logs in body"});
+    }
+    realmHandler.addAppLogsForUser(appLogs, thisUser[0]).then( ()=>{
+        res.status(CREATED).json({"message":"AppUsageLogs saved"});
+    }).catch(error => {
         res.status(INT_ERROR).json({"error":error});
     });
 });

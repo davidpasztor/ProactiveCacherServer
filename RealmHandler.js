@@ -49,6 +49,14 @@ const UserLogSchema = {
     }
 };
 
+const AppUsageLogSchema = {
+    name: 'AppUsageLog',
+    properties: {
+        appOpeningTime: 'date',
+        watchedVideosCount: 'int'
+    }
+}
+
 const UserSchema = {
 	name: 'User',
 	primaryKey: 'userID',
@@ -56,14 +64,15 @@ const UserSchema = {
 		userID: 'string',
 		ratings: {type: 'linkingObjects',objectType: 'Rating',property:'user'},
 		cachedVideos: 'Video[]',
-        logs: 'UserLog[]'
+        logs: 'UserLog[]',
+        appUsageLogs: 'AppUsageLog[]'
 	}
 };
 
 const allSchemas = [VideoSchema,RatingSchema,BatteryStateLogSchema,
-    UserLocationSchema,UserLogSchema,UserSchema];
+    UserLocationSchema,UserLogSchema,AppUsageLogSchema,UserSchema];
 
-var currentSchemaVersion = 3;
+var currentSchemaVersion = 4;
 
 // Perform migration if needed, return the opened Realm instance in case of success
 function performMigration(){
@@ -204,9 +213,29 @@ function addUserLogsForUser(userLogs,user){
                 });
             } catch (e) {
                 console.log(e);
+                reject(e);
             }
         }).catch(error => {
             console.log(error);
+            reject(e);
+        });
+    });
+}
+
+// Add AppUsageLog objects to a User
+function addAppLogsForUser(appLogs,user){
+    return new Promise((resolve,reject) => {
+        Realm.open({schema: allSchemas, schemaVersion: currentSchemaVersion}).then(realm => {
+            try {
+                realm.write( ()=>{
+                    appLogs.forEach(log => user.appUsageLogs.push(log));
+                    resolve();
+                });
+            } catch (e) {
+                reject(e);
+            }
+        }).catch(error => {
+            reject(error);
         });
     });
 }
@@ -220,6 +249,7 @@ module.exports = {
     getUserWithID,
     createUser,
     getUsers,
-    addUserLogsForUser
+    addUserLogsForUser,
+    addAppLogsForUser
 }
 
