@@ -5,6 +5,7 @@
   "private": true,
   "main": "index.js",
   "dependencies": {
+    "apn": "^2.2.0",
     "express": "^4.16.2",
     "realm": "^2.2.14",
     "youtube-dl": "^1.12.2"
