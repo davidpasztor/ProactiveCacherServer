@@ -40,12 +40,6 @@ function sendNetworkAvailabilityReqPush(deviceToken){
     });
 }
 
-// TODO: create function that calls sendNetworkAvailability at regular intervals 
-// for all users supplied as its input argument --> call this from index.js once
-// the users have been retrieved from Realm --> have to make sure that it works 
-// for newly registered users as well, namely the users Results instance keeps 
-// updating when its passed regularly to this function
-
 // Send a push notification to all registered users to request the creation of
 // a UserLog object and hence check network availability
 function sendNetwAvailReqPushToAll(users){
@@ -56,11 +50,9 @@ function sendNetwAvailReqPushToAll(users){
 	notification.topic = bundleId;
 	
 	users.forEach(user => {
-		//console.log("Preparing to send notification to " + user.userID);
 		apnProvider.send(notification,user.userID).then( result => {
 			console.log("At " + new Date());
 			console.log(result);
-			//console.log(result + " at " + new Date());
 		});
 	});
 }
@@ -77,12 +69,7 @@ function pushVideoToDevice(videoID,deviceToken){
     });
 }
 
-//sendNetworkAvailabilityReqPush(deviceToken);
-//pushVideoToDevice("zorKvDiLbxw",deviceToken);
   
-// Close the server
-// TODO: check if this is actually necessary or not?
-//apnProvider.shutdown();
 
 module.exports = {
     sendNetworkAvailabilityReqPush,
@@ -91,4 +78,3 @@ module.exports = {
 	userLogRequestInterval
 }
 
-//exports.userLogRequestInterval = userLogRequestInterval;
