@@ -10,6 +10,7 @@ const Realm = require('realm');
 const realmHandler = require('./RealmHandler');
 const fs = require('fs');
 const streamViewer = require('./streamViewer');
+const cacheManager = require('./CacheManager');
 
 // Create Express app and set its port to 3000 by default
 var app = express();
@@ -25,14 +26,17 @@ const BAD_REQ = 400;    // Request is malformed - bad syntax, missing parameters
 const UNAUTH = 401;     // Unauthorized - no or incorrect auth header
 const INT_ERROR = 500;  // Internal server error
 
-//app.get('/', (req, res) => res.send('Hello World!'));
-//app.get('/storage', (req,res) => res.send('GET request to storage'));
-
+// Autoupdating Results instance storing all Users
 var users = null;
 realmHandler.performMigration().then( () => {
     return realmHandler.getUsers();
 }).then(fetchedUsers => {
     users = fetchedUsers;
+	// Repeat the push notification at the set interval
+	setInterval( () => {
+		// Send a push notification to all users to generate a new UserLog
+		cacheManager.sendNetwAvailReqPushToAll(users);
+	},cacheManager.userLogRequestInterval);
 }).catch(error => {
     console.log(error);
 });
@@ -275,7 +279,7 @@ app.post('/videos/rate', function(req,res){
 app.post('/userlogs', function(req,res){
     let userID = req.headers.user;
     let thisUser = users.filtered('userID == $0',userID);
-    if (!userID || !thisUser){
+    if (!userID || !thisUser[0]){
         return res.status(UNAUTH).json({"error":"Invalid userID"});
     }
     // Parse userlog from request body, then save it to Realm
@@ -292,7 +296,7 @@ app.post('/userlogs', function(req,res){
 app.post('/applogs', function(req,res){
     let userID = req.headers.user;
     let thisUser = users.filtered('userID == $0',userID);
-    if (!userID || !thisUser){
+    if (!userID || !thisUser[0]){
         return res.status(UNAUTH).json({"error":"Invalid userID"});
     }
     // Parse app usage logs from request body, then save it to Realm
@@ -321,3 +325,6 @@ app.use(function(err,req,res,next){
 // Start the server
 app.listen(3000, () => console.log('Cache manager listening on port 3000!'));
 
+module.exports = {
+	users
+}

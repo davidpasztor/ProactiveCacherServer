@@ -19,6 +19,11 @@ const bundleId = "com.DavidPasztor.ProactiveCacher";
 // TODO: associate deviceTokens with users
 let deviceToken = "8dfbc6124ec07f151b5d79c6c7a5273e2f444f696f797c215b293bfedbece29e";
 
+// Send a push notification to request a UserLog object this often
+const userLogRequestInterval = 15*60*1000;	// 15 minutes in milliseconds
+
+// Send a push notification to the specified device token to request the 
+// creation of a UserLog object and hence check network availability
 function sendNetworkAvailabilityReqPush(deviceToken){
     let notification = new apn.Notification();
     notification.expiry = Math.floor(Date.now() / 1000) + 24 * 3600; // will expire in 24 hours from now
@@ -35,6 +40,31 @@ function sendNetworkAvailabilityReqPush(deviceToken){
     });
 }
 
+// TODO: create function that calls sendNetworkAvailability at regular intervals 
+// for all users supplied as its input argument --> call this from index.js once
+// the users have been retrieved from Realm --> have to make sure that it works 
+// for newly registered users as well, namely the users Results instance keeps 
+// updating when its passed regularly to this function
+
+// Send a push notification to all registered users to request the creation of
+// a UserLog object and hence check network availability
+function sendNetwAvailReqPushToAll(users){
+	let notification = new apn.Notification();
+	notification.expiry = Math.floor(Date.now()/1000)+3600; // expires in 1 hour
+	notification.payload = {'message':'Network Available'};
+	notification.contentAvailable = 1;
+	notification.topic = bundleId;
+	
+	users.forEach(user => {
+		//console.log("Preparing to send notification to " + user.userID);
+		apnProvider.send(notification,user.userID).then( result => {
+			console.log("At " + new Date());
+			console.log(result);
+			//console.log(result + " at " + new Date());
+		});
+	});
+}
+
 function pushVideoToDevice(videoID,deviceToken){
     let notification = new apn.Notification();
     notification.expiry = Math.floor(Date.now()/1000)+3600; // expire in 1 hour
@@ -48,7 +78,7 @@ function pushVideoToDevice(videoID,deviceToken){
 }
 
 //sendNetworkAvailabilityReqPush(deviceToken);
-pushVideoToDevice("zorKvDiLbxw",deviceToken);
+//pushVideoToDevice("zorKvDiLbxw",deviceToken);
   
 // Close the server
 // TODO: check if this is actually necessary or not?
@@ -56,5 +86,9 @@ pushVideoToDevice("zorKvDiLbxw",deviceToken);
 
 module.exports = {
     sendNetworkAvailabilityReqPush,
-    pushVideoToDevice
+	sendNetwAvailReqPushToAll,
+    pushVideoToDevice,
+	userLogRequestInterval
 }
+
+//exports.userLogRequestInterval = userLogRequestInterval;
