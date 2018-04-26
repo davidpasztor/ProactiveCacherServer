@@ -94,6 +94,11 @@ function performMigration(){
     })
 }
 
+// Return an opened Realm instance
+function openRealm(){
+	return Realm.open({schema: allSchemas,schemaVersion: currentSchemaVersion});
+}
+
 // Create a new Video object in Realm with the given properties
 function addVideo(id,title,filePath,thumbnailPath){
 	Realm.open({schema: allSchemas,schemaVersion: currentSchemaVersion}).then(realm => {
@@ -135,6 +140,17 @@ function getVideoWithID(primaryKey){
 			reject(error);
 		});
 	});
+}
+
+// Retrieve all ratings
+function getRatings(){
+    return new Promise((resolve,reject) => {
+        Realm.open({schema: allSchemas,schemaVersion: currentSchemaVersion}).then(realm => {
+            resolve(realm.objects('Rating'));
+        }).catch(error => {
+            reject(error);
+        });
+    });
 }
 
 // Create/update a rating for an existing User and Video Object
@@ -242,6 +258,7 @@ function addAppLogsForUser(appLogs,user){
 
 module.exports = {
     performMigration,
+	openRealm,
 	addVideo,
 	getVideos,
 	getVideoWithID,
