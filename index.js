@@ -41,6 +41,16 @@ realmHandler.performMigration().then( () => {
     console.log(error);
 });
 
+// Only used for testing
+realmHandler.openRealm().then( realm => {
+    const users = realm.objects('User');
+	const videos = realm.objects('Video');
+	const ratings = realm.objects('Rating');
+	cacheManager.generatePredictedRatings(users,videos,ratings);
+}).catch(error => {
+    console.log(error);
+});
+
 // Register new userID
 app.post('/register', function(req,res){
     let userID = req.body.userID;
@@ -292,6 +302,8 @@ app.post('/userlogs', function(req,res){
     });
 });
 
+// TODO: once a new app usage log is uploaded, should make a caching decision for
+// the user who uploaded the log
 // Upload app usage logs
 app.post('/applogs', function(req,res){
     let userID = req.headers.user;
