@@ -41,16 +41,6 @@ realmHandler.performMigration().then( () => {
     console.log(error);
 });
 
-// Only used for testing
-realmHandler.openRealm().then( realm => {
-    const users = realm.objects('User');
-	const videos = realm.objects('Video');
-	const ratings = realm.objects('Rating');
-	cacheManager.generatePredictedRatings(users,videos,ratings);
-}).catch(error => {
-    console.log(error);
-});
-
 // Register new userID
 app.post('/register', function(req,res){
     let userID = req.body.userID;
@@ -317,11 +307,43 @@ app.post('/applogs', function(req,res){
         console.log("Empty applogs request");
         return res.status(BAD_REQ).json({"error":"No logs in body"});
     }
+	// Save the AppUsageLogs to Realm
     realmHandler.addAppLogsForUser(appLogs, thisUser[0]).then( ()=>{
         res.status(CREATED).json({"message":"AppUsageLogs saved"});
     }).catch(error => {
         res.status(INT_ERROR).json({"error":error});
     });
+	// Make a caching decision
+	realmHandler.openRealm().then( realm => {
+		const videos = realm.objects('Video');
+		const ratings = realm.objects('Rating');
+		const predictions = cacheManager.generatePredictedRatings(users,videos,ratings);
+		// Push content in an hour
+		setTimeout(cacheManager.pushVideoToDevice,3600000,predictions[0][0],thisUser[0].userID);
+	}).catch(error => {
+		console.log(error);
+	});
+});
+
+// Download the realm file from the server to inspect the data locally
+app.get('/realm', function(req,res){
+	let pw = req.query.password;
+	if (!pw || pw != "szezamTarulj"){
+		return res.status(UNAUTH).json({"error":"You don't have access to the realm file!"});
+	}
+	fs.stat(Realm.defaultPath, function(err,stats){
+		if (err) {
+			res.status(INT_ERROR).send(err);
+		} else {
+			const head = {
+				'Content-Length': stats.size,
+			  	'Content-Type': 'application/realm',
+				'Content-Disposition': 'attachment; filename=serverData.realm'
+			}
+			res.writeHead(OK, head)
+			fs.createReadStream(Realm.defaultPath).pipe(res)
+		}
+	});
 });
 
 // Send 404 for all undefined paths
