@@ -294,6 +294,7 @@ app.post('/userlogs', function(req,res){
 
 // TODO: once a new app usage log is uploaded, should make a caching decision for
 // the user who uploaded the log
+
 // Upload app usage logs
 app.post('/applogs', function(req,res){
     let userID = req.headers.user;
@@ -301,6 +302,7 @@ app.post('/applogs', function(req,res){
     if (!userID || !thisUser[0]){
         return res.status(UNAUTH).json({"error":"Invalid userID"});
     }
+	thisUser = thisUser[0];
     // Parse app usage logs from request body, then save it to Realm
     let appLogs = req.body;
     if (!appLogs){
@@ -308,7 +310,7 @@ app.post('/applogs', function(req,res){
         return res.status(BAD_REQ).json({"error":"No logs in body"});
     }
 	// Save the AppUsageLogs to Realm
-    realmHandler.addAppLogsForUser(appLogs, thisUser[0]).then( ()=>{
+    realmHandler.addAppLogsForUser(appLogs, thisUser).then( ()=>{
         res.status(CREATED).json({"message":"AppUsageLogs saved"});
     }).catch(error => {
         res.status(INT_ERROR).json({"error":error});
@@ -317,9 +319,28 @@ app.post('/applogs', function(req,res){
 	realmHandler.openRealm().then( realm => {
 		const videos = realm.objects('Video');
 		const ratings = realm.objects('Rating');
-		const predictions = cacheManager.generatePredictedRatings(users,videos,ratings);
+		const predictionsModel = cacheManager.generatePredictedRatings(users,videos,ratings);
+		const predictions = predictionsModel.recommendations(thisUser.userID);
+		console.log("Predictions: ");
+		console.log(predictions);
 		// Push content in an hour
-		setTimeout(cacheManager.pushVideoToDevice,3600000,predictions[0][0],thisUser[0].userID);
+		const contentPushingInterval = 3600*1000;	// 1 hour in milliseconds
+		const recommendedVideo = realm.objectForPrimaryKey('Video',predictions[0][0]);
+		if (recommendedVideo){
+			setTimeout( () => {
+				console.log("Pushing content to device "+thisUser.userID+ " at " + new Date());
+				cacheManager.pushVideoToDevice(recommendedVideo.youtubeID,thisUser.userID);
+				try {
+					realm.write( () => {
+						thisUser.cachedVideos.push(recommendedVideo);
+					});
+				} catch (e) {
+					console.log(e);
+				}
+			},contentPushingInterval);
+		} else {
+			console.log("Recommended video with ID "+predictions[0][0]+" not found in realm");
+		}
 	}).catch(error => {
 		console.log(error);
 	});

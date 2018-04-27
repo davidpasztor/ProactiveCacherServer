@@ -17,8 +17,7 @@ var apnProvider = new apn.Provider(options);
 const bundleId = "com.DavidPasztor.ProactiveCacher";
 
 // Device token of my iPhone X - used for testing
-// TODO: associate deviceTokens with users
-let deviceToken = "8dfbc6124ec07f151b5d79c6c7a5273e2f444f696f797c215b293bfedbece29e";
+let myDeviceToken = "8dfbc6124ec07f151b5d79c6c7a5273e2f444f696f797c215b293bfedbece29e";
 
 // Send a push notification to request a UserLog object this often
 const userLogRequestInterval = 15*60*1000;	// 15 minutes in milliseconds
