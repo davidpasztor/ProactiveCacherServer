@@ -11,7 +11,8 @@ const realmHandler = require('./RealmHandler');
 const fs = require('fs');
 const streamViewer = require('./streamViewer');
 const cacheManager = require('./CacheManager');
-const winston = require('winston');
+//const winston = require('winston');
+const {logger} = require('./log');
 
 // Create Express app and set its port to 3000 by default
 var app = express();
@@ -26,7 +27,7 @@ const CREATED = 201;
 const BAD_REQ = 400;    // Request is malformed - bad syntax, missing parameters
 const UNAUTH = 401;     // Unauthorized - no or incorrect auth header
 const INT_ERROR = 500;  // Internal server error
-
+/*
 const logger = winston.createLogger({
 	level: 'debug', // Levels: error: 0, warn: 1, info: 2, verbose: 3, debug: 4, silly: 5 
   	format: winston.format.combine(
@@ -46,7 +47,7 @@ if (process.env.NODE_ENV !== 'production') {
     format: winston.format.simple()
   }));
 }
-
+*/
 // Autoupdating Results instance storing all Users
 var users = null;
 realmHandler.performMigration().then( () => {
@@ -422,11 +423,48 @@ app.get('/realm', function(req,res){
 	});
 });
 
+// Download the log file (either error or all logs depending on parameter)
+app.get('/serverlogs/*', function(req,res){
+	let pw = req.query.password;
+	if (!pw || pw != "szezamTarulj"){
+		logger.warn("Trying to access the /serverlogs endpoint without the correct password, password query parameter is: "+pw);
+		return res.status(UNAUTH).json({"error":"You don't have access to the logs file!"});
+	}
+	let requestedLog = req.params[0];
+	console.log("Request parameter: "+requestedLog);
+	var filename = null;
+	if (requestLog == "error"){
+		filename = "server_error.log";
+	} else if (requestLog == "all"){
+		filename = "server_all.log";
+	} else {
+		logger.warn("Trying to access serverlogs at "+req.params);
+		console.log("Trying to access serverlogs at "+req.params);
+		return res.status(404).json({"error":"Invalid endpoint"});
+	}
+	console.log("Downloading log files");
+	logger.verbose("Downloading log files");
+	fs.stat(filename, function(err,stats){
+		if (err) {
+			logger.error("Error downloading error log file: "+error);
+			return res.status(INT_ERROR).send(err);
+		} else {
+			const head = {
+				'Content-Length': stats.size,
+			  	'Content-Type': 'application/log',
+				'Content-Disposition': 'attachment; filename='+filename
+			}
+			res.writeHead(OK, head)
+			fs.createReadStream(filename).pipe(res)
+		}
+	});
+});
+
 // Send 404 for all undefined paths
 app.use(function(err,req,res,next){
     let userID = req.headers.user;
     if (!userID || !users.filtered('userID == $0',userID).length){
-        return res.status(UNAUTH).json({"error":"Invalid userID"});
+        return res.status(UNAUTH).json({"error":"Invalid userID for endpoint "+req.url});
     }
 	logger.warn("Request failed to "+req.url);
 	console.log('Request failed to ' + req.url);
@@ -437,6 +475,5 @@ app.use(function(err,req,res,next){
 app.listen(3000, () => logger.info('Cache manager listening on port 3000!'));
 
 module.exports = {
-	logger,
 	users
 }
