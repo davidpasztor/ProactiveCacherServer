@@ -9,6 +9,7 @@
     "express": "^4.16.2",
     "likely": "^0.2.0",
     "realm": "^2.2.14",
+    "winston": "^3.0.0-rc5",
     "youtube-dl": "^1.12.2"
   },
   "devDependencies": {

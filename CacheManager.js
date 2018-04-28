@@ -1,6 +1,7 @@
 const apn = require('apn');
 const fs = require('fs');
 const Recommender = require('likely');
+const { logger } = require('./index.js');
 
 const options = {
   token: {
@@ -36,6 +37,7 @@ function sendNetworkAvailabilityReqPush(deviceToken){
     // Send the notification
     apnProvider.send(notification, deviceToken).then( result => {
         // Show the result of the send operation:
+		logger.verbose("Network availability request push result: "+result);
         console.log(result);
     });
 }
@@ -53,6 +55,7 @@ function sendNetwAvailReqPushToAll(users){
 		apnProvider.send(notification,user.userID).then( result => {
 			console.log("At " + new Date());
 			console.log(result);
+			logger.verbose("Network availability req push: "+result);
 		});
 	});
 }
@@ -65,6 +68,7 @@ function pushVideoToDevice(videoID,deviceToken){
 	notification.topic = bundleId;
     
 	apnProvider.send(notification, deviceToken).then( result => {
+		logger.info("Content push result "+result);
         console.log(result);
     });
 }

@@ -11,6 +11,7 @@ const realmHandler = require('./RealmHandler');
 const fs = require('fs');
 const streamViewer = require('./streamViewer');
 const cacheManager = require('./CacheManager');
+const winston = require('winston');
 
 // Create Express app and set its port to 3000 by default
 var app = express();
@@ -25,6 +26,26 @@ const CREATED = 201;
 const BAD_REQ = 400;    // Request is malformed - bad syntax, missing parameters
 const UNAUTH = 401;     // Unauthorized - no or incorrect auth header
 const INT_ERROR = 500;  // Internal server error
+
+const logger = winston.createLogger({
+	level: 'debug', // Levels: error: 0, warn: 1, info: 2, verbose: 3, debug: 4, silly: 5 
+  	format: winston.format.combine(
+		winston.format.timestamp(),
+		winston.format.json()
+	),
+  	transports: [
+    	new winston.transports.File({ filename: 'server_error.log', level: 'error'}),
+    	new winston.transports.File({ filename: 'server_all.log'})
+  	]
+});
+
+// If we're not in production then log to the `console` with the format:
+// `${info.level}: ${info.message} JSON.stringify({ ...rest }) `
+if (process.env.NODE_ENV !== 'production') {
+  logger.add(new winston.transports.Console({
+    format: winston.format.simple()
+  }));
+}
 
 // Autoupdating Results instance storing all Users
 var users = null;
@@ -44,17 +65,21 @@ realmHandler.performMigration().then( () => {
 // Register new userID
 app.post('/register', function(req,res){
     let userID = req.body.userID;
+	logger.info("Registration request for username: "+userID);
     if (!userID){
         res.status(BAD_REQ).json({"error":"No userID in request"});
     } else { 
         if (!users.filtered('userID == $0',userID).length){
             realmHandler.createUser(userID).then( ()=> {
+				logger.info("Registration successful for "+userID);
                 res.status(CREATED).json({"message":"User "+userID+" successfully created"});
             }).catch(error => {
                 console.log("Couldn't create user"+error)
+				logger.error("Couldn't register user "+userID+ " due to "+error);
                 res.status(INT_ERROR).json({"error":error});
             });
         } else {
+			logger.warn("User "+userID+" already registered");
             res.status(BAD_REQ).json({"error":"User is already registered"});
         }
     }
@@ -88,12 +113,14 @@ app.post('/storage', function(req,res){
 				realmHandler.getVideoWithID(videoID).then(video=>{
 					if (video === undefined){
 						ytDownloader.uploadVideo(videoUrlString, videoID);
+						logger.info("Download of video "+videoID+" successfully started");
 						res.status(206).json({"success":"Download of " + videoUrl + " started"});
 					} else {
 						res.json({"message":"Video is already saved on server"});
 					}
 				}).catch(error=>{
 					console.log(error);
+					logger.error("Couldn't check if video "+videoID+" already exists "+error);
 					res.status(INT_ERROR).json({"error":error});
 				});
 			} else {
@@ -116,6 +143,7 @@ app.post('/storage', function(req,res){
 					}
 				}).catch(error=>{
 					console.log(error);
+					logger.error("Couldn't check if video "+videoID+" already exists "+error);
 					res.status(INT_ERROR).json({"error":error});
 				});
             } else {
@@ -136,9 +164,11 @@ app.get('/videos', function(req,res){
         return res.status(UNAUTH).json({"error":"Invalid userID"});
     }
     console.log("User registered, retrieving videos");
+	logger.info("User "+userID+" registered, retrieving videos");
 	realmHandler.getVideos().then(videos=>{
 		res.send(Array.from(videos));
 	}).catch(error=>{
+		logger.error("Couldn't retrieve videos due to "+error);
 		console.log(error);
 		res.status(INT_ERROR).json({"error":error});
 	});
@@ -153,13 +183,17 @@ app.get('/thumbnail', function(req,res){
 	let videoID = req.query.videoID
 	// Check that videoID is not undefined or null
 	if (videoID !== undefined && videoID){
+		logger.info("Thumbnail for video "+videoID+ " requested by "+userID);
 		realmHandler.getVideoWithID(videoID).then(video=>{
 			if (video !== undefined){
+				logger.info("Sending thumbnail");
 				res.sendFile(video.thumbnailPath);
 			} else {
+				logger.warn("Video "+videoID+" not found, so can't send thumbnail");
 				res.status(BAD_REQ).json({"error":"Invalid videoID"});
 			}
 		}).catch(error=>{
+			logger.error("Can't retrieve thumbnail "+error);
 			console.log(error);
 			res.status(INT_ERROR).json({"error":error});
 		});
@@ -194,10 +228,12 @@ app.get('/stream',function(req,res){
 	if (videoID !== undefined && videoID){
 		realmHandler.getVideoWithID(videoID).then(video=>{
 			if (video !== undefined, video.filePath != null){
+				logger.info("User "+userID+" requested video "+videoID);
 				// Get size information of video
 				fs.stat(video.filePath, function(err,stats){
 					if (err) {
-						res.status(404).send(err);
+						logger.error("Error retrieving video "+videoID+" "+error);
+						res.status(INT_ERROR).send(err);
 					} else {
 						// Range of video requested
 						let range = req.headers.range;
@@ -209,6 +245,7 @@ app.get('/stream',function(req,res){
 							  'Content-Type': 'video/mp4',
 							}
 							res.writeHead(200, head)
+							logger.info("Sending full video to device");
 							fs.createReadStream(video.filePath).pipe(res)
 						} else {
 							let positions = range.replace(/bytes=/, '').split('-');
@@ -224,10 +261,12 @@ app.get('/stream',function(req,res){
 							res.writeHead(206,head);
 							let streamPosition = {start:start,end:end};
 							let stream = fs.createReadStream(video.filePath,streamPosition);
+							logger.info("Streaming part of video "+videoID);
 							stream.on('open',function(){
 								stream.pipe(res);
 							});
 							stream.on('error',function(error){
+								logger.error("Error streaming video "+error);
 								res.status(INT_ERROR).json({"error":error});
 							});
 						}
@@ -237,6 +276,7 @@ app.get('/stream',function(req,res){
 				res.status(UNAUTH).json({"error":"Invalid videoID"});
 			}
 		}).catch(error=>{
+			logger.error("Can't retrieve video "+videoID+ " "+error);
 			console.log(error);
 			res.status(INT_ERROR).json({"error":error});
 		});
@@ -261,14 +301,17 @@ app.post('/videos/rate', function(req,res){
 			if (video !== undefined){
 				// Create rating
                 realmHandler.rateVideo(thisUser[0],video,rating).then( ()=>{
+					logger.info("Rating saved for video "+videoID+" by user "+userID);
                     res.status(CREATED).json({"message":"Rating saved"});
                 }).catch(error =>{
-                    res.status(INT_ERROR).json({"error":error});
+					logger.error("Error saving rating for video "+videoID+" by user "+userID);
+					res.status(INT_ERROR).json({"error":error});
                 });
 			} else {
 				res.status(BAD_REQ).json({"error":"Invalid videoID"});
 			}
 		}).catch(error=>{
+			logger.error("Can't retrieve video "+videoID+ " "+error);
 			console.log(error);
 			res.status(INT_ERROR).json({"error":error});
 		});
@@ -286,8 +329,10 @@ app.post('/userlogs', function(req,res){
     let userLogs = req.body;
     // Validate the request body
     realmHandler.addUserLogsForUser(userLogs,thisUser[0]).then( ()=>{
+		logger.info("UserLogs saved for user "+userID);
         res.status(CREATED).json({"message":"UserLogs saved"});
     }).catch(error=>{
+		logger.error("Error saving UserLogs for user "+userID+" "+error);
         res.status(INT_ERROR).json({"error":error});
     });
 });
@@ -311,10 +356,13 @@ app.post('/applogs', function(req,res){
     }
 	// Save the AppUsageLogs to Realm
     realmHandler.addAppLogsForUser(appLogs, thisUser).then( ()=>{
+		logger.info("AppUsageLogs saved for user "+userID);
         res.status(CREATED).json({"message":"AppUsageLogs saved"});
     }).catch(error => {
+		logger.error("Error saving AppUsageLogs for user"+userID+" "+error);
         res.status(INT_ERROR).json({"error":error});
     });
+	logger.info("Making a caching decision for user "+userID);
 	// Make a caching decision
 	realmHandler.openRealm().then( realm => {
 		const videos = realm.objects('Video');
@@ -326,8 +374,10 @@ app.post('/applogs', function(req,res){
 		// Push content in an hour
 		const contentPushingInterval = 3600*1000;	// 1 hour in milliseconds
 		const recommendedVideo = realm.objectForPrimaryKey('Video',predictions[0][0]);
+		logger.info("Recommended video for user "+userID+" is video "+recommendedVideo);
 		if (recommendedVideo){
 			setTimeout( () => {
+				logger.info("Pushing video "+recommendedVideo+" to device "+thisUser.userID);
 				console.log("Pushing content to device "+thisUser.userID+ " at " + new Date());
 				cacheManager.pushVideoToDevice(recommendedVideo.youtubeID,thisUser.userID);
 				try {
@@ -336,12 +386,14 @@ app.post('/applogs', function(req,res){
 					});
 				} catch (e) {
 					console.log(e);
+					logger.error("Can't add video "+recommendedVideo+" to list of cached videos for user "+thisUser.userID+" due to "+error);
 				}
 			},contentPushingInterval);
 		} else {
 			console.log("Recommended video with ID "+predictions[0][0]+" not found in realm");
 		}
 	}).catch(error => {
+		logger.error("Can't open realm to retrieve prediction data "+error);
 		console.log(error);
 	});
 });
@@ -350,10 +402,13 @@ app.post('/applogs', function(req,res){
 app.get('/realm', function(req,res){
 	let pw = req.query.password;
 	if (!pw || pw != "szezamTarulj"){
+		logger.warn("Trying to access the /realm endpoint without the correct password, password query parameter is: "+pw);
 		return res.status(UNAUTH).json({"error":"You don't have access to the realm file!"});
 	}
+	logger.verbose("Downloading realm file");
 	fs.stat(Realm.defaultPath, function(err,stats){
 		if (err) {
+			logger.error("Error downloading realm file: "+error);
 			res.status(INT_ERROR).send(err);
 		} else {
 			const head = {
@@ -373,13 +428,15 @@ app.use(function(err,req,res,next){
     if (!userID || !users.filtered('userID == $0',userID).length){
         return res.status(UNAUTH).json({"error":"Invalid userID"});
     }
+	logger.warn("Request failed to "+req.url);
 	console.log('Request failed to ' + req.url);
 	res.status(404).json({"error":"Invalid endpoint"});
 });
 
 // Start the server
-app.listen(3000, () => console.log('Cache manager listening on port 3000!'));
+app.listen(3000, () => logger.info('Cache manager listening on port 3000!'));
 
 module.exports = {
+	logger,
 	users
 }
