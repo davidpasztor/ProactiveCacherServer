@@ -431,19 +431,18 @@ app.get('/serverlogs/*', function(req,res){
 		return res.status(UNAUTH).json({"error":"You don't have access to the logs file!"});
 	}
 	let requestedLog = req.params[0];
-	console.log("Request parameter: "+requestedLog);
 	var filename = null;
-	if (requestLog == "error"){
+    if (requestedLog == "error"){
 		filename = "server_error.log";
-	} else if (requestLog == "all"){
+        console.log(filename);
+	} else if (requestedLog == "all"){
 		filename = "server_all.log";
+        console.log(filename);
 	} else {
 		logger.warn("Trying to access serverlogs at "+req.params);
-		console.log("Trying to access serverlogs at "+req.params);
 		return res.status(404).json({"error":"Invalid endpoint"});
 	}
-	console.log("Downloading log files");
-	logger.verbose("Downloading log files");
+	logger.verbose("Downloading log files: "+filename);
 	fs.stat(filename, function(err,stats){
 		if (err) {
 			logger.error("Error downloading error log file: "+error);
