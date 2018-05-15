@@ -53,6 +53,8 @@ function sendNetwAvailReqPushToAll(users){
 	users.forEach(user => {
 		apnProvider.send(notification,user.userID).then( result => {
 			logger.verbose("Network availability req push: "+JSON.stringify(result));
+            // TODO: parse the result and if it contains 400 - bad device token error,
+            // delete the user to whom it was sent
 		});
 	});
 }

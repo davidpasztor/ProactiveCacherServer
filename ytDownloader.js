@@ -35,6 +35,9 @@ function uploadVideo(youtubeUrl,youtubeID){
         console.log('title: ' + info.title);
         console.log('size: ' + info.size);
 		console.log('id: ' + info.id);
+        console.log('categories: ' + info.categories);
+        console.log('video length: '+info.duration);
+        //console.log(Object.getOwnPropertyNames(info));
 		// Add video to Realm
 		realmHandler.addVideo(info.id,info.title,__dirname+'/storage/videos/'+
 			youtubeID+'.mp4',__dirname+'/storage/thumbnails/'+youtubeID+'.jpg');

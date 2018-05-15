@@ -27,27 +27,7 @@ const CREATED = 201;
 const BAD_REQ = 400;    // Request is malformed - bad syntax, missing parameters
 const UNAUTH = 401;     // Unauthorized - no or incorrect auth header
 const INT_ERROR = 500;  // Internal server error
-/*
-const logger = winston.createLogger({
-	level: 'debug', // Levels: error: 0, warn: 1, info: 2, verbose: 3, debug: 4, silly: 5 
-  	format: winston.format.combine(
-		winston.format.timestamp(),
-		winston.format.json()
-	),
-  	transports: [
-    	new winston.transports.File({ filename: 'server_error.log', level: 'error'}),
-    	new winston.transports.File({ filename: 'server_all.log'})
-  	]
-});
 
-// If we're not in production then log to the `console` with the format:
-// `${info.level}: ${info.message} JSON.stringify({ ...rest }) `
-if (process.env.NODE_ENV !== 'production') {
-  logger.add(new winston.transports.Console({
-    format: winston.format.simple()
-  }));
-}
-*/
 // Autoupdating Results instance storing all Users
 var users = null;
 realmHandler.performMigration().then( () => {
@@ -375,7 +355,7 @@ app.post('/applogs', function(req,res){
 		// Push content in an hour
 		const contentPushingInterval = 3600*1000;	// 1 hour in milliseconds
 		const recommendedVideo = realm.objectForPrimaryKey('Video',predictions[0][0]);
-		logger.info("Recommended video for user "+userID+" is video "+recommendedVideo);
+		logger.info("Recommended video for user "+userID+" is video "+JSON.stringify(recommendedVideo));
 		if (recommendedVideo){
 			setTimeout( () => {
 				logger.info("Pushing video "+recommendedVideo+" to device "+thisUser.userID);
