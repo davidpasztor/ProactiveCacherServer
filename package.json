@@ -20,9 +20,9 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "npm run main",
-    "main": "node index.js",
-    "build-ts": "tsc",
-    "watch-ts": "tsc -w"
+    "main": "node compiled_node/index.js",
+    "build": "tsc",
+    "watch": "tsc -w"
   },
   "repository": {
     "type": "git",
