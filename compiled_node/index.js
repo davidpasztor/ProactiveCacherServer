@@ -14,7 +14,7 @@ const log_1 = require("./log");
 var app = express();
 app.set('port', process.env.PORT || 3000);
 // For JSON parsing
-app.use(bodyParser.json());
+app.use(bodyParser.json({ limit: '50mb' }));
 // HTTP status codes
 const OK = 200;
 const CREATED = 201;
