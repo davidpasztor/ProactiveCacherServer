@@ -94,8 +94,8 @@ function performMigration() {
             if (oldRealm.schemaVersion < 2 && currentSchemaVersion == 2) {
                 // Need to manually create the timeStampString property,
                 // otherwise it will hold the default value and would be duplicated
-                const oldObjects = oldRealm.objects(UserLog.schema);
-                const newObjects = newRealm.objects(UserLog.schema);
+                const oldObjects = oldRealm.objects(UserLog.schema.name);
+                const newObjects = newRealm.objects(UserLog.schema.name);
                 for (let i = 0; i < oldObjects.length; i++) {
                     newObjects[i].timeStampString = oldObjects[i].timeStamp.toISOString();
                 }
@@ -112,6 +112,7 @@ function openRealm() {
 exports.openRealm = openRealm;
 // Create a new Video object in Realm with the given properties
 function addVideo(id, title, filePath, thumbnailPath) {
+    //TODO: modify the function to return a Promise just like all other Realm funcs
     Realm.open({ schema: allSchemas, schemaVersion: currentSchemaVersion }).then(realm => {
         try {
             realm.write(() => {
@@ -135,7 +136,7 @@ exports.addVideo = addVideo;
 function getVideos() {
     return new Promise((resolve, reject) => {
         Realm.open({ schema: allSchemas, schemaVersion: currentSchemaVersion }).then(realm => {
-            let videos = realm.objects(Video.schema);
+            let videos = realm.objects(Video.schema.name);
             resolve(videos);
         }).catch(error => {
             reject(error);
@@ -147,7 +148,7 @@ exports.getVideos = getVideos;
 function getVideoWithID(primaryKey) {
     return new Promise((resolve, reject) => {
         Realm.open({ schema: allSchemas, schemaVersion: currentSchemaVersion }).then(realm => {
-            resolve(realm.objectForPrimaryKey(Video.schema, primaryKey));
+            resolve(realm.objectForPrimaryKey(Video.schema.name, primaryKey));
         }).catch(error => {
             reject(error);
         });
@@ -158,7 +159,7 @@ exports.getVideoWithID = getVideoWithID;
 function getRatings() {
     return new Promise((resolve, reject) => {
         Realm.open({ schema: allSchemas, schemaVersion: currentSchemaVersion }).then(realm => {
-            resolve(realm.objects(Rating.schema));
+            resolve(realm.objects(Rating.schema.name));
         }).catch(error => {
             reject(error);
         });
@@ -169,7 +170,7 @@ exports.getRatings = getRatings;
 function rateVideo(user, video, rating) {
     return new Promise((resolve, reject) => {
         Realm.open({ schema: allSchemas, schemaVersion: currentSchemaVersion }).then(realm => {
-            let ratingObject = realm.objects(Rating.schema).filtered('user == $0 AND video == $1', user, video);
+            let ratingObject = realm.objects(Rating.schema.name).filtered('user == $0 AND video == $1', user, video);
             try {
                 realm.write(() => {
                     // If there is no previous rating, create one
@@ -226,13 +227,32 @@ exports.createUser = createUser;
 function getUsers() {
     return new Promise((resolve, reject) => {
         Realm.open({ schema: allSchemas, schemaVersion: currentSchemaVersion }).then(realm => {
-            resolve(realm.objects(User.schema));
+            resolve(realm.objects(User.schema.name));
         }).catch(error => {
             reject(error);
         });
     });
 }
 exports.getUsers = getUsers;
+// Delete an existing User
+function deleteUser(user) {
+    return new Promise((resolve, reject) => {
+        Realm.open({ schema: allSchemas, schemaVersion: currentSchemaVersion }).then(realm => {
+            try {
+                realm.write(() => {
+                    realm.delete(user);
+                    resolve();
+                });
+            }
+            catch (error) {
+                reject(error);
+            }
+        }).catch(error => {
+            reject(error);
+        });
+    });
+}
+exports.deleteUser = deleteUser;
 // Add UserLog objects to a User
 function addUserLogsForUser(userLogs, user) {
     return new Promise((resolve, reject) => {

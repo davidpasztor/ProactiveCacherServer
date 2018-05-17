@@ -195,7 +195,7 @@ function createUser(userID) {
 function getUsers() {
     return new Promise(function (resolve, reject) {
         Realm.open({ schema: allSchemas, schemaVersion: currentSchemaVersion }).then(function (realm) {
-            resolve(realm.objects('User'));
+            resolve(realm.objects(User.schema));
         })["catch"](function (error) {
             reject(error);
         });
