@@ -3,7 +3,7 @@ import fs = require('fs');
 import path = require('path');
 import Recommender = require('likely');
 import {logger} from "./log";
-import { User, Video, Rating } from "./RealmHandler";
+import { User, Video, Rating, deleteUser } from "./RealmHandler";
 
 const options = {
   token: {
@@ -21,6 +21,8 @@ const bundleId = "com.DavidPasztor.ProactiveCacher";
 
 // Device token of my iPhone X - used for testing
 let myDeviceToken = "8dfbc6124ec07f151b5d79c6c7a5273e2f444f696f797c215b293bfedbece29e";
+// Device token of my iPad - used for testing
+let iPadDeviceToken = "bc1e740eb300df5fc8e74f4d50e5644024f55a5254e95bdd122a9eb6e0dd99ad";
 
 // Send a push notification to request a UserLog object this often
 export const userLogRequestInterval = 15*60*1000;	// 15 minutes in milliseconds
@@ -38,8 +40,10 @@ export function sendNetworkAvailabilityReqPush(deviceToken:string){
     notification.topic = bundleId;     
     // Send the notification
     apnProvider.send(notification, deviceToken).then( result => {
-        // Show the result of the send operation:
+        // Show the result of the send operation: 
 		logger.verbose("Network availability request push result: "+JSON.stringify(result));
+    }).catch(error=>{
+        logger.error("Error sending network availability push request: "+error);
     });
 }
 
@@ -52,12 +56,23 @@ export function sendNetwAvailReqPushToAll(users:Realm.Results<User>){
 	notification.contentAvailable = true;
 	notification.topic = bundleId;
 	
+    //TODO: apnProvider.send can accept a string[] for its second input argument, so no need to iterate through each user, can simply map through them to get the userIDs and send the notification to all of them with a single `send` call
+
 	users.forEach(user => {
 		apnProvider.send(notification,user.userID).then( result => {
 			logger.verbose("Network availability req push: "+JSON.stringify(result));
-            // TODO: parse the result and if it contains 400 - bad device token error,
-            // delete the user to whom it was sent
-		});
+            logger.verbose("Failed sends: "+result.failed.length);
+            for (let fail of result.failed){
+                logger.warn("Push notification failed to "+fail.device+" with status "+fail.status+" and response "+JSON.stringify(fail.response)); 
+                if (fail.status == "400"){
+                    //Delete user if the deviceToken proved to be wrong
+                    logger.info("Deleting user "+user.userID+" due to error 400 - bad device token");
+                    deleteUser(user);
+                }
+            }
+        }).catch(error=>{
+            logger.error("Error sending network availability push:"+error);
+        });
 	});
 }
 
@@ -70,8 +85,13 @@ export function pushVideoToDevice(videoID:string,deviceToken:string){
     
 	apnProvider.send(notification, deviceToken).then( result => {
 		logger.info("Content push result "+JSON.stringify(result));
+    }).catch(error=>{
+        logger.error("Error while pushing content to device: "+error);
     });
 }
+
+//pushVideoToDevice("VYOjWnS4cMY",iPadDeviceToken);
+
 /*
 // Make a caching decision for the specific user - decide what content to push
 // to the device (if any) and when to push it
