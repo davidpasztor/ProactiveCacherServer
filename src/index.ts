@@ -10,6 +10,7 @@ import realmHandler = require('./RealmHandler');
 import fs = require('fs');
 import cacheManager = require('./CacheManager');
 import {logger} from "./log";
+import YouTubeBrowser = require('./YouTubeBrowser');
 
 // Create Express app and set its port to 3000 by default
 var app = express();
@@ -27,17 +28,28 @@ const INT_ERROR = 500;  // Internal server error
 
 // Autoupdating Results instance storing all Users
 export let users: Realm.Results<realmHandler.User>;
+// Do stuff that needs to happen once, at the start of the setver
 realmHandler.performMigration().then( () => {
     return realmHandler.getUsers();
 }).then(fetchedUsers => {
     users = fetchedUsers;
-	// Repeat the push notification at the set interval
-	setInterval( () => {
-		// Send a push notification to all users to generate a new UserLog
-		cacheManager.sendNetwAvailReqPushToAll(users!);
-	},cacheManager.userLogRequestInterval);
+    // Repeat the push notification at the set interval
+	  setInterval( () => {
+		    // Send a push notification to all users to generate a new UserLog
+		    cacheManager.sendNetwAvailReqPushToAll(users!);
+	  },cacheManager.userLogRequestInterval);
+    // Get YouTube categories from the API and the already saved ones from Realm
+    return Promise.all([YouTubeBrowser.videoCategories,realmHandler.getVideoCategories()]);
+}).then(categoriesYouTubeAndSaved=>{
+    const existingCategories = categoriesYouTubeAndSaved["1"];
+    const youTubeCategories = categoriesYouTubeAndSaved["0"];
+    // Filter the fetched categories from YouTube to only keep the ones that haven't already been added to Realm
+    const newYouTubeCategories = youTubeCategories.filter(ytCat=>existingCategories.filtered("id == $0",ytCat.id).length == 0);
+    logger.info("Found "+newYouTubeCategories.length+" new YouTube video categories, saving them to Realm");
+    // Add the new YouTube categories to Realm
+    return realmHandler.addVideoCategories(newYouTubeCategories);
 }).catch(error => {
-    console.log(error);
+    logger.error(error);
 });
 
 // Register new userID
@@ -46,7 +58,7 @@ app.post('/register', function(req,res){
 	logger.info("Registration request for username: "+userID);
     if (!userID){
         res.status(BAD_REQ).json({"error":"No userID in request"});
-    } else { 
+    } else {
         if (!users.filtered('userID == $0',userID).length){
             realmHandler.createUser(userID).then( ()=> {
 				logger.info("Registration successful for "+userID);
@@ -65,72 +77,70 @@ app.post('/register', function(req,res){
 
 // Upload youtube video to server
 app.post('/storage', function(req,res){
-	let videoUrlString = req.body.url;
+    let videoUrlString = req.body.url;
     let userID = req.headers.user;
     if (!userID || !users.filtered('userID == $0',userID).length){
         return res.status(UNAUTH).json({"error":"Invalid userID"});
     }
-	// No URL parameter in request body, send error response
-	if (videoUrlString === undefined){
-		res.status(BAD_REQ).json({"error":"No URL in request"});
-	} else {
-		let videoUrl: URL;
-		try {
-			videoUrl = new URL(videoUrlString);	
-		} catch (e) {	// Invalid URL, send error response
-			console.log(e);
-			return res.status(BAD_REQ).json({"error":"URL "+videoUrlString+" is not valid "+e});
-		}
+    // No URL parameter in request body, send error response
+    if (videoUrlString === undefined){
+		    res.status(BAD_REQ).json({"error":"No URL in request"});
+    } else {
+		    let videoUrl: URL;
+		    try {
+			      videoUrl = new URL(videoUrlString);
+		    } catch (e) {	// Invalid URL, send error response
+			      console.log(e);
+			      return res.status(BAD_REQ).json({"error":"URL "+videoUrlString+" is not valid "+e});
+		    }
         if (videoUrl.host == "www.youtube.com" || videoUrl.host == "youtube.com"){
             let youtubeIDregex = /\?v\=(\w+)/;
-			let matches = youtubeIDregex.exec(videoUrl.search)
-			if (matches  !== null){
-				let videoID = matches[1];
-				// Check if video is already on the server, only download it
-				// if it wasn't added before
-				realmHandler.getVideoWithID(videoID).then(video=>{
-					if (video === undefined){
-						ytDownloader.uploadVideo(videoUrlString, videoID);
-						logger.info("Download of video "+videoID+" successfully started");
-						res.status(206).json({"success":"Download of " + videoUrl + " started"});
-					} else {
-						res.json({"message":"Video is already saved on server"});
-					}
-				}).catch(error=>{
-					console.log(error);
-					logger.error("Couldn't check if video "+videoID+" already exists "+error);
-					res.status(INT_ERROR).json({"error":error});
-				});
-			} else {
-				res.status(BAD_REQ).json({"error":"Non-YouTube URL"});
-			}
+			      let matches = youtubeIDregex.exec(videoUrl.search)
+			      if (matches  !== null){
+				        let videoID = matches[1];
+                // Check if video is already on the server, only download it
+                // if it wasn't added before
+                realmHandler.getVideoWithID(videoID).then(video=>{
+                    if (video === undefined){
+                        ytDownloader.uploadVideo(videoUrlString, videoID);
+                        logger.info("Download of video "+videoID+" successfully started");
+                        res.status(206).json({"success":"Download of " + videoUrl + " started"});
+                    } else {
+                        res.json({"message":"Video is already saved on server"});
+                    }
+                }).catch(error=>{
+                    logger.error("Couldn't check if video "+videoID+" already exists "+error);
+                    res.status(INT_ERROR).json({"error":error});
+                });
+            } else {
+                res.status(BAD_REQ).json({"error":"Non-YouTube URL"});
+            }
         } else if (videoUrl.host == "youtu.be") {
             const youtubeIDregex = /\/(\w+)/;
             const matches = youtubeIDregex.exec(videoUrl.pathname);
             // TODO: this part is copied exactly from above, should rewrite function
             if (matches !== null){
                 let videoID = matches[1];
-				// Check if video is already on the server, only download it
-				// if it wasn't added before
-				realmHandler.getVideoWithID(videoID).then(video=>{
-					if (video === undefined){
-						ytDownloader.uploadVideo(videoUrlString, videoID);
-						res.status(202).json({"success":"Download of " + videoUrl + " started"});
-					} else {
-						res.json({"message":"Video is already saved on server"});
-					}
-				}).catch(error=>{
-					console.log(error);
-					logger.error("Couldn't check if video "+videoID+" already exists "+error);
-					res.status(INT_ERROR).json({"error":error});
-				});
+                // Check if video is already on the server, only download it
+                // if it wasn't added before
+                realmHandler.getVideoWithID(videoID).then(video=>{
+                    if (video === undefined){
+                        ytDownloader.uploadVideo(videoUrlString, videoID);
+                        res.status(202).json({"success":"Download of " + videoUrl + " started"});
+                    } else {
+                        res.json({"message":"Video is already saved on server"});
+                    }
+                }).catch(error=>{
+                    logger.error("Couldn't check if video "+videoID+" already exists "+error);
+                    res.status(INT_ERROR).json({"error":error});
+                });
             } else {
                 res.status(BAD_REQ).json({"error":"Invalid YouTube URL "+videoUrl});
             }
         } else {
-			res.status(BAD_REQ).json({"error":"Non-YouTube URL"});
-        }	
-	}
+            res.status(BAD_REQ).json({"error":"Non-YouTube URL"});
+        }
+    }
 });
 
 // Get a list of available videos
@@ -234,7 +244,7 @@ app.get('/stream',function(req,res){
 								res.status(INT_ERROR).json({"error":error});
 							});
 						}
-					}					
+					}
 				});
 			} else {
 				res.status(UNAUTH).json({"error":"Invalid videoID"});

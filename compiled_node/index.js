@@ -10,6 +10,7 @@ const realmHandler = require("./RealmHandler");
 const fs = require("fs");
 const cacheManager = require("./CacheManager");
 const log_1 = require("./log");
+const YouTubeBrowser = require("./YouTubeBrowser");
 // Create Express app and set its port to 3000 by default
 var app = express();
 app.set('port', process.env.PORT || 3000);
@@ -30,8 +31,15 @@ realmHandler.performMigration().then(() => {
         // Send a push notification to all users to generate a new UserLog
         cacheManager.sendNetwAvailReqPushToAll(exports.users);
     }, cacheManager.userLogRequestInterval);
+    return Promise.all([YouTubeBrowser.videoCategories, realmHandler.getVideoCategories()]);
+}).then(categoriesYouTubeAndSaved => {
+    const existingCategories = categoriesYouTubeAndSaved["1"];
+    const youTubeCategories = categoriesYouTubeAndSaved["0"];
+    const newYouTubeCategories = youTubeCategories.filter(ytCat => existingCategories.filtered("id == $0", ytCat.id).length == 0);
+    log_1.logger.info("Found " + newYouTubeCategories.length + " new YouTube video categories, saving them to Realm");
+    return realmHandler.addVideoCategories(newYouTubeCategories);
 }).catch(error => {
-    console.log(error);
+    log_1.logger.error(error);
 });
 // Register new userID
 app.post('/register', function (req, res) {
@@ -94,7 +102,6 @@ app.post('/storage', function (req, res) {
                         res.json({ "message": "Video is already saved on server" });
                     }
                 }).catch(error => {
-                    console.log(error);
                     log_1.logger.error("Couldn't check if video " + videoID + " already exists " + error);
                     res.status(INT_ERROR).json({ "error": error });
                 });
@@ -120,7 +127,6 @@ app.post('/storage', function (req, res) {
                         res.json({ "message": "Video is already saved on server" });
                     }
                 }).catch(error => {
-                    console.log(error);
                     log_1.logger.error("Couldn't check if video " + videoID + " already exists " + error);
                     res.status(INT_ERROR).json({ "error": error });
                 });
