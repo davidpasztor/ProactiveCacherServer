@@ -19,11 +19,11 @@ export function getThumbnails(youtubeUrl:string,youtubeID:string){
     youtubedl.getThumbs(youtubeUrl, options, function(err, files) {
         if (err) throw err;
         //console.log('thumbnail file downloaded:', files);
-		let defaultThumbnailUrlString = path.join(thumbnailsDir,files[0]);
-		let newThumbnailUrlString = path.join(thumbnailsDir,youtubeID+'.jpg');
-		fs.rename(defaultThumbnailUrlString,newThumbnailUrlString,function(err){
-			if (err) throw err;
-		});
+        let defaultThumbnailUrlString = path.join(thumbnailsDir,files[0]);
+        let newThumbnailUrlString = path.join(thumbnailsDir,youtubeID+'.jpg');
+        fs.rename(defaultThumbnailUrlString,newThumbnailUrlString,function(err){
+            if (err) throw err;
+        });
     });
 }
 
@@ -45,6 +45,7 @@ export function uploadVideo(youtubeUrl:string,youtubeID:string){
         //console.log(Object.getOwnPropertyNames(info));
         const thumbnailPath = path.join(thumbnailsDir,youtubeID+'.jpg');
         const videoPath = path.join(videosDir,youtubeID+'.mp4');
+        // TODO: fetch video category from YouTube and save that as well
 		// Add video to Realm
 		realmHandler.addVideo(info.id,info.title,videoPath,thumbnailPath);
         // Save downloaded video

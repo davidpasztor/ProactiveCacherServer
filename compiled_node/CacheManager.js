@@ -54,12 +54,10 @@ function sendNetwAvailReqPushToAll(users) {
         apnProvider.send(notification, user.userID).then(result => {
             log_1.logger.verbose("Network availability req push: " + JSON.stringify(result));
             log_1.logger.verbose("Failed sends: " + result.failed.length);
-            // TODO: parse the result and if it contains 400 - bad device token error,
-            // delete the user to whom it was sent
             for (let fail of result.failed) {
                 log_1.logger.warn("Push notification failed to " + fail.device + " with status " + fail.status + " and response " + JSON.stringify(fail.response));
                 if (fail.status == "400") {
-                    //Delete this user
+                    //Delete user if the deviceToken proved to be wrong
                     log_1.logger.info("Deleting user " + user.userID + " due to error 400 - bad device token");
                     RealmHandler_1.deleteUser(user);
                 }

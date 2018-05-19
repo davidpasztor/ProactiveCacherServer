@@ -1,4 +1,6 @@
 import Realm = require('realm');
+import { Results } from 'realm';
+import { youtube_v3 } from 'googleapis';
 
 export class Video {
     public static schema: Realm.ObjectSchema = {
@@ -9,7 +11,8 @@ export class Video {
             title:         'string',
             filePath:      'string?',
             thumbnailPath: 'string?',
-            uploadDate:    'date'
+            uploadDate:    'date',
+            category: 'VideoCategory'
         }
     }
 
@@ -18,6 +21,25 @@ export class Video {
     public filePath?: string | null;
     public thumbnailPath?: string | null;
     public uploadDate: Date;
+    public category: VideoCategory;
+}
+
+export class VideoCategory {
+    public static schema: Realm.ObjectSchema = {
+        name: 'VideoCategory',
+        primaryKey: 'id',
+        properties: {
+            id: 'string',
+            name: 'string',
+            isYouTubeCategory: 'bool',
+            videos: {type: 'linkingObjects', objectType: 'Video', property: 'category'}
+        }
+    }
+
+    public id: string;
+    public name: string;
+    public isYouTubeCategory: boolean;
+    public videos: Realm.Results<Video>;
 }
 
 export class Rating {
@@ -43,7 +65,7 @@ export class BatteryStateLog {
             batteryState: 'string'
         }
     }
-    
+
     public batteryPercentage: number;
     public batteryState: string;
 }
@@ -56,7 +78,7 @@ export class UserLocation {
             longitude: 'double'
         }
     }
-    
+
     public latitude: number;
     public longitude: number;
 }
@@ -71,7 +93,7 @@ export class UserLog {
             timeStamp: 'date',
         }
     }
-    
+
     public location?: UserLocation | null;
     public batteryState? : BatteryStateLog | null;
     public networkStatus: string;
@@ -86,7 +108,7 @@ export class AppUsageLog {
             watchedVideosCount: 'int'
         }
     }
-    
+
     public appOpeningTime: Date;
     public watchedVideosCount: number;
 }
@@ -103,7 +125,7 @@ export class User {
             appUsageLogs: 'AppUsageLog[]'
         }
     }
-    
+
     public userID: string;
     public ratings: Realm.Results<Rating>;
     public cachedVideos: Realm.List<Video>;
@@ -112,9 +134,9 @@ export class User {
 }
 
 const allSchemas = [Video.schema,Rating.schema,BatteryStateLog.schema,
-    UserLocation.schema,UserLog.schema,AppUsageLog.schema,User.schema];
+                    UserLocation.schema,UserLog.schema,AppUsageLog.schema,User.schema,VideoCategory.schema];
 
-const currentSchemaVersion:number = 4;
+const currentSchemaVersion:number = 5;
 
 // Perform migration if needed, return the opened Realm instance in case of success
 export function performMigration(){
@@ -122,14 +144,14 @@ export function performMigration(){
         schema: allSchemas,
         schemaVersion: currentSchemaVersion,
         migration: (oldRealm, newRealm) => {
-			if (oldRealm.schemaVersion < 2 && currentSchemaVersion == 2){
-				// Need to manually create the timeStampString property,
-				// otherwise it will hold the default value and would be duplicated
-				const oldObjects = oldRealm.objects<UserLog>(UserLog.schema.name);
-				const newObjects = newRealm.objects<UserLog>(UserLog.schema.name);
+			      if (oldRealm.schemaVersion < 2 && currentSchemaVersion == 2){
+				        // Need to manually create the timeStampString property,
+				        // otherwise it will hold the default value and would be duplicated
+				        const oldObjects = oldRealm.objects<UserLog>(UserLog.schema.name);
+				        const newObjects = newRealm.objects<UserLog>(UserLog.schema.name);
                 for (let i=0;i<oldObjects.length;i++){
                     (<any>newObjects[i]).timeStampString = oldObjects[i].timeStamp.toISOString();
-			    }
+			          }
             }
             //Realm will handle the migration itself
         }
@@ -183,6 +205,49 @@ export function getVideoWithID(primaryKey:string):Promise<Video | undefined>{
 			reject(error);
 		});
 	});
+}
+
+// Create a new video category
+export function addVideoCategory(id:string,name:string,isYouTubeCategory:boolean):Promise<void>{
+    return new Promise((resolve, reject)=>{
+        openRealm().then(realm=>{
+            try {
+                realm.write(()=>{
+                    realm.create(VideoCategory.schema.name,{id:id,name:name,isYouTubeCategory:isYouTubeCategory});
+                    resolve();
+                });
+            } catch (error){
+                reject(error);
+            }
+        }).catch(error=>{reject(error);});
+    });
+}
+
+// Add the fetched YouTube video categories to Realm
+export function addVideoCategories(youTubeCategories:youtube_v3.Schema$VideoCategory[]){
+    return new Promise((resolve,reject)=>{
+        openRealm().then(realm=>{
+            try {
+                realm.write(()=>{
+                    for (let youTubeCategory of youTubeCategories){
+                        if (youTubeCategory.snippet && youTubeCategory.snippet.title){
+                            realm.create(VideoCategory.schema.name,{id:youTubeCategory.id,name:youTubeCategory.snippet.title,isYouTubeCategory:true});
+                        }
+                    }
+                    resolve();
+                });
+            } catch (error){
+                reject(error);
+            }
+        }).catch(error=>reject(error));
+    });
+}
+
+// Return all VideoCategory objects from Realm
+export function getVideoCategories(){
+    return openRealm().then(realm=>{
+        return realm.objects<VideoCategory>(VideoCategory.schema.name);
+    });
 }
 
 // Retrieve all ratings

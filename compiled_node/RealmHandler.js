@@ -11,10 +11,24 @@ Video.schema = {
         title: 'string',
         filePath: 'string?',
         thumbnailPath: 'string?',
-        uploadDate: 'date'
+        uploadDate: 'date',
+        category: 'VideoCategory'
     }
 };
 exports.Video = Video;
+class VideoCategory {
+}
+VideoCategory.schema = {
+    name: 'VideoCategory',
+    primaryKey: 'id',
+    properties: {
+        id: 'string',
+        name: 'string',
+        isYouTubeCategory: 'bool',
+        videos: { type: 'linkingObjects', objectType: 'Video', property: 'category' }
+    }
+};
+exports.VideoCategory = VideoCategory;
 class Rating {
 }
 Rating.schema = {
@@ -83,8 +97,8 @@ User.schema = {
 };
 exports.User = User;
 const allSchemas = [Video.schema, Rating.schema, BatteryStateLog.schema,
-    UserLocation.schema, UserLog.schema, AppUsageLog.schema, User.schema];
-const currentSchemaVersion = 4;
+    UserLocation.schema, UserLog.schema, AppUsageLog.schema, User.schema, VideoCategory.schema];
+const currentSchemaVersion = 5;
 // Perform migration if needed, return the opened Realm instance in case of success
 function performMigration() {
     return Realm.open({
@@ -155,6 +169,51 @@ function getVideoWithID(primaryKey) {
     });
 }
 exports.getVideoWithID = getVideoWithID;
+// Create a new video category
+function addVideoCategory(id, name, isYouTubeCategory) {
+    return new Promise((resolve, reject) => {
+        openRealm().then(realm => {
+            try {
+                realm.write(() => {
+                    realm.create(VideoCategory.schema.name, { id: id, name: name, isYouTubeCategory: isYouTubeCategory });
+                    resolve();
+                });
+            }
+            catch (error) {
+                reject(error);
+            }
+        }).catch(error => { reject(error); });
+    });
+}
+exports.addVideoCategory = addVideoCategory;
+// Add the fetched YouTube video categories to Realm
+function addVideoCategories(youTubeCategories) {
+    return new Promise((resolve, reject) => {
+        openRealm().then(realm => {
+            try {
+                realm.write(() => {
+                    for (let youTubeCategory of youTubeCategories) {
+                        if (youTubeCategory.snippet && youTubeCategory.snippet.title) {
+                            realm.create(VideoCategory.schema.name, { id: youTubeCategory.id, name: youTubeCategory.snippet.title, isYouTubeCategory: true });
+                        }
+                    }
+                    resolve();
+                });
+            }
+            catch (error) {
+                reject(error);
+            }
+        }).catch(error => reject(error));
+    });
+}
+exports.addVideoCategories = addVideoCategories;
+// Return all VideoCategory objects from Realm
+function getVideoCategories() {
+    return openRealm().then(realm => {
+        return realm.objects(VideoCategory.schema.name);
+    });
+}
+exports.getVideoCategories = getVideoCategories;
 // Retrieve all ratings
 function getRatings() {
     return new Promise((resolve, reject) => {
