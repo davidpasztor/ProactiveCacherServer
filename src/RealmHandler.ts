@@ -134,7 +134,8 @@ export class User {
 }
 
 const allSchemas = [Video.schema,Rating.schema,BatteryStateLog.schema,
-                    UserLocation.schema,UserLog.schema,AppUsageLog.schema,User.schema,VideoCategory.schema];
+                    UserLocation.schema,UserLog.schema,AppUsageLog.schema,
+                    User.schema,VideoCategory.schema];
 
 const currentSchemaVersion:number = 5;
 

@@ -11,7 +11,7 @@ import fs = require('fs');
 import cacheManager = require('./CacheManager');
 import {logger} from "./log";
 import YouTubeBrowser = require('./YouTubeBrowser');
-import { VideoCategory, Video } from "./RealmHandler";
+import { Rating, User, VideoCategory, Video } from "./RealmHandler";
 import { youtube_v3 } from "googleapis";
 import { Results } from "realm";
 
@@ -30,13 +30,13 @@ const UNAUTH = 401;     // Unauthorized - no or incorrect auth header
 const INT_ERROR = 500;  // Internal server error
 
 // Autoupdating Results instance storing all Users
-export let users: Realm.Results<realmHandler.User>;
+export let users: Results<User>;
 // Do stuff that needs to happen once, at the start of the server
 function executeStartupTasks(){
     let youTubeCategories:youtube_v3.Schema$VideoCategory[];
-    let videoCategories:Results<realmHandler.VideoCategory>;
-    let videos:Results<realmHandler.Video>;
-    let uncategorizedVideos:Results<realmHandler.Video>;
+    let videoCategories:Results<VideoCategory>;
+    let videos:Results<Video>;
+    let uncategorizedVideos:Results<Video>;
     let realm:Realm;
     logger.info("Startup tasks executing");
     return realmHandler.performMigration().then( openRealm => {
@@ -185,20 +185,16 @@ app.post('/storage', function(req,res){
 // Get a list of available videos
 app.get('/videos', function(req,res){
     let userID = req.headers.user;
-    console.log("There are " + users.length + " users registered");
-    console.log(userID + " found " + users.filtered('userID == $0',userID).length + " times");
     if (!userID || !users.filtered('userID == $0',userID).length){
         return res.status(UNAUTH).json({"error":"Invalid userID"});
     }
-    console.log("User registered, retrieving videos");
-	logger.info("User "+userID+" registered, retrieving videos");
-	realmHandler.getVideos().then(videos=>{
-		res.send(Array.from(videos));
-	}).catch(error=>{
-		logger.error("Couldn't retrieve videos due to "+error);
-		console.log(error);
-		res.status(INT_ERROR).json({"error":error});
-	});
+    logger.info("User "+userID+" registered, retrieving videos");
+    realmHandler.getVideos().then(videos=>{
+		    res.send(Array.from(videos));
+    }).catch(error=>{
+		    logger.error("Couldn't retrieve videos due to "+error);
+		    res.status(INT_ERROR).json({"error":error});
+    });
 });
 
 // Get thumbnail image for video
@@ -360,14 +356,14 @@ app.post('/applogs', function(req,res){
     if (!userID || !matchingUsers[0]){
         return res.status(UNAUTH).json({"error":"Invalid userID"});
     }
-	let thisUser = matchingUsers[0];
+    let thisUser = matchingUsers[0];
     // Parse app usage logs from request body, then save it to Realm
     let appLogs = req.body;
     if (!appLogs){
         console.log("Empty applogs request");
         return res.status(BAD_REQ).json({"error":"No logs in body"});
     }
-	// Save the AppUsageLogs to Realm
+    // Save the AppUsageLogs to Realm
     realmHandler.addAppLogsForUser(appLogs, thisUser).then( ()=>{
 		logger.info("AppUsageLogs saved for user "+userID);
         res.status(CREATED).json({"message":"AppUsageLogs saved"});
@@ -375,18 +371,18 @@ app.post('/applogs', function(req,res){
 		logger.error("Error saving AppUsageLogs for user"+userID+" "+error);
         res.status(INT_ERROR).json({"error":error});
     });
-	logger.info("Making a caching decision for user "+userID);
-	// Make a caching decision
-	realmHandler.openRealm().then( realm => {
-		const videos = realm.objects<realmHandler.Video>(realmHandler.Video.schema.name);
-		const ratings = realm.objects<realmHandler.Rating>(realmHandler.Rating.schema.name);
+    logger.info("Making a caching decision for user "+userID);
+	  // Make a caching decision
+	  realmHandler.openRealm().then( realm => {
+		const videos = realm.objects<Video>(Video.schema.name);
+		const ratings = realm.objects<Rating>(Rating.schema.name);
 		const predictionsModel = cacheManager.generatePredictedRatings(users,videos,ratings);
 		const predictions = predictionsModel.recommendations(thisUser.userID);
 		console.log("Predictions: ");
 		console.log(predictions);
 		// Push content in an hour
 		const contentPushingInterval = 3600*1000;	// 1 hour in milliseconds
-		const recommendedVideo = realm.objectForPrimaryKey<realmHandler.Video>(realmHandler.Video.schema.name,predictions[0][0]);
+		const recommendedVideo = realm.objectForPrimaryKey<Video>(Video.schema.name,predictions[0][0]);
 		logger.info("Recommended video for user "+userID+" is video "+JSON.stringify(recommendedVideo));
 		if (recommendedVideo){
 			setTimeout( () => {
@@ -407,8 +403,34 @@ app.post('/applogs', function(req,res){
 		}
 	}).catch(error => {
 		logger.error("Can't open realm to retrieve prediction data "+error);
-		console.log(error);
 	});
+});
+
+// Get a list of available video categories
+app.get('/videos/categories', function(req,res){
+    let userID = req.headers.user;
+    let matchingUsers = users.filtered('userID == $0',userID);
+    if (!userID || !matchingUsers[0]){
+        return res.status(UNAUTH).json({"error":"Invalid userID"});
+    }
+    realmHandler.getVideoCategories().then(videoCategories=>{
+        // JSON.stringify that's used by bodyparser cannot handle circular dependencies and there's one due to the video linkingObjects
+        /*
+        const videoCategoriesJSON = JSON.stringify(Array.from(videoCategories),function(key,value){
+            // Don't include videos in response
+            if (key == "videos"){
+                return undefined;
+            }
+            return value
+        });
+        */
+        // The Array of names as the second input parameter specify which properties to include in the JSON
+        const videoCategoriesJSON = JSON.stringify(Array.from(videoCategories),['id','name']);
+        res.send(videoCategoriesJSON);
+    }).catch(error=>{
+        logger.error("Error getting video categories: "+error);
+        res.status(INT_ERROR).json({"error":error});
+    });
 });
 
 // Download the realm file from the server to inspect the data locally
@@ -477,9 +499,8 @@ app.use(function(req,res){
     if (!userID || !users.filtered('userID == $0',userID).length){
         return res.status(UNAUTH).json({"error":"Invalid userID for endpoint "+req.url});
     }
-	logger.warn("Request failed to "+req.url);
-	console.log('Request failed to ' + req.url);
-	res.status(404).json({"error":"Invalid endpoint"});
+    logger.warn("Request failed to "+req.url+", that endpoint is not defined");
+	  res.status(404).json({"error":"Invalid endpoint"+req.url});
 });
 
 // Start the server

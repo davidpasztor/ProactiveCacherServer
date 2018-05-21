@@ -97,7 +97,8 @@ User.schema = {
 };
 exports.User = User;
 const allSchemas = [Video.schema, Rating.schema, BatteryStateLog.schema,
-    UserLocation.schema, UserLog.schema, AppUsageLog.schema, User.schema, VideoCategory.schema];
+    UserLocation.schema, UserLog.schema, AppUsageLog.schema,
+    User.schema, VideoCategory.schema];
 const currentSchemaVersion = 5;
 // Perform migration if needed, return the opened Realm instance in case of success
 function performMigration() {

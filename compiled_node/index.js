@@ -58,8 +58,7 @@ function executeStartupTasks() {
         // Fetch the category for each Video that doesn't have one yet
         return Promise.all(uncategorizedVideos.map(video => YouTubeBrowser.videoDetails(video.youtubeID)));
     }).then(snippets => {
-        log_1.logger.debug("Number of snippets returned: " + snippets.length);
-        log_1.logger.debug("Number of uncategorized videos: " + uncategorizedVideos.length);
+        // Iterating through the Results (uncategorizedVideos) would fuck up matching indexes with snippets, since when a category is added to a video, the Results instance is updated, so need a non-updating Array to iterate through
         const uncategorizedVideosArray = Array.from(uncategorizedVideos);
         return new Promise((resolve, reject) => {
             try {
@@ -187,18 +186,14 @@ app.post('/storage', function (req, res) {
 // Get a list of available videos
 app.get('/videos', function (req, res) {
     let userID = req.headers.user;
-    console.log("There are " + exports.users.length + " users registered");
-    console.log(userID + " found " + exports.users.filtered('userID == $0', userID).length + " times");
     if (!userID || !exports.users.filtered('userID == $0', userID).length) {
         return res.status(UNAUTH).json({ "error": "Invalid userID" });
     }
-    console.log("User registered, retrieving videos");
     log_1.logger.info("User " + userID + " registered, retrieving videos");
     realmHandler.getVideos().then(videos => {
         res.send(Array.from(videos));
     }).catch(error => {
         log_1.logger.error("Couldn't retrieve videos due to " + error);
-        console.log(error);
         res.status(INT_ERROR).json({ "error": error });
     });
 });
@@ -382,15 +377,15 @@ app.post('/applogs', function (req, res) {
     log_1.logger.info("Making a caching decision for user " + userID);
     // Make a caching decision
     realmHandler.openRealm().then(realm => {
-        const videos = realm.objects(realmHandler.Video.schema.name);
-        const ratings = realm.objects(realmHandler.Rating.schema.name);
+        const videos = realm.objects(RealmHandler_1.Video.schema.name);
+        const ratings = realm.objects(RealmHandler_1.Rating.schema.name);
         const predictionsModel = cacheManager.generatePredictedRatings(exports.users, videos, ratings);
         const predictions = predictionsModel.recommendations(thisUser.userID);
         console.log("Predictions: ");
         console.log(predictions);
         // Push content in an hour
         const contentPushingInterval = 3600 * 1000; // 1 hour in milliseconds
-        const recommendedVideo = realm.objectForPrimaryKey(realmHandler.Video.schema.name, predictions[0][0]);
+        const recommendedVideo = realm.objectForPrimaryKey(RealmHandler_1.Video.schema.name, predictions[0][0]);
         log_1.logger.info("Recommended video for user " + userID + " is video " + JSON.stringify(recommendedVideo));
         if (recommendedVideo) {
             setTimeout(() => {
@@ -413,7 +408,31 @@ app.post('/applogs', function (req, res) {
         }
     }).catch(error => {
         log_1.logger.error("Can't open realm to retrieve prediction data " + error);
-        console.log(error);
+    });
+});
+// Get a list of available video categories
+app.get('/videos/categories', function (req, res) {
+    let userID = req.headers.user;
+    let matchingUsers = exports.users.filtered('userID == $0', userID);
+    if (!userID || !matchingUsers[0]) {
+        return res.status(UNAUTH).json({ "error": "Invalid userID" });
+    }
+    realmHandler.getVideoCategories().then(videoCategories => {
+        // JSON.stringify that's used by bodyparser cannot handle circular dependencies and there's one due to the video linkingObjects
+        /*
+        const videoCategoriesJSON = JSON.stringify(Array.from(videoCategories),function(key,value){
+            // Don't include videos in response
+            if (key == "videos"){
+                return undefined;
+            }
+            return value
+        });
+        */
+        const videoCategoriesJSON = JSON.stringify(Array.from(videoCategories), ['id', 'name']);
+        res.send(videoCategoriesJSON);
+    }).catch(error => {
+        log_1.logger.error("Error getting video categories: " + error);
+        res.status(INT_ERROR).json({ "error": error });
     });
 });
 // Download the realm file from the server to inspect the data locally
@@ -484,9 +503,8 @@ app.use(function (req, res) {
     if (!userID || !exports.users.filtered('userID == $0', userID).length) {
         return res.status(UNAUTH).json({ "error": "Invalid userID for endpoint " + req.url });
     }
-    log_1.logger.warn("Request failed to " + req.url);
-    console.log('Request failed to ' + req.url);
-    res.status(404).json({ "error": "Invalid endpoint" });
+    log_1.logger.warn("Request failed to " + req.url + ", that endpoint is not defined");
+    res.status(404).json({ "error": "Invalid endpoint" + req.url });
 });
 // Start the server
 executeStartupTasks().then(() => {
