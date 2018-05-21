@@ -191,7 +191,13 @@ app.get('/videos', function (req, res) {
     }
     log_1.logger.info("User " + userID + " registered, retrieving videos");
     realmHandler.getVideos().then(videos => {
-        res.send(Array.from(videos));
+        const videosJSON = JSON.stringify(Array.from(videos), function (key, value) {
+            if (key == "category") {
+                return undefined;
+            }
+            return value;
+        });
+        res.send(videosJSON);
     }).catch(error => {
         log_1.logger.error("Couldn't retrieve videos due to " + error);
         res.status(INT_ERROR).json({ "error": error });
@@ -419,19 +425,32 @@ app.get('/videos/categories', function (req, res) {
     }
     realmHandler.getVideoCategories().then(videoCategories => {
         // JSON.stringify that's used by bodyparser cannot handle circular dependencies and there's one due to the video linkingObjects
-        /*
-        const videoCategoriesJSON = JSON.stringify(Array.from(videoCategories),function(key,value){
-            // Don't include videos in response
-            if (key == "videos"){
-                return undefined;
-            }
-            return value
-        });
-        */
+        // videos can can be omitted by supplying an array of variable names to include in the JSON
         const videoCategoriesJSON = JSON.stringify(Array.from(videoCategories), ['id', 'name']);
         res.send(videoCategoriesJSON);
     }).catch(error => {
         log_1.logger.error("Error getting video categories: " + error);
+        res.status(INT_ERROR).json({ "error": error });
+    });
+});
+// Get all videos in a certain category
+app.get('/videos/categories/*', function (req, res) {
+    const userID = req.headers.user;
+    const matchingUsers = exports.users.filtered('userID == $0', userID);
+    if (!userID || !matchingUsers[0]) {
+        return res.status(UNAUTH).json({ "error": "Invalid userID" });
+    }
+    const categoryID = req.params[0];
+    realmHandler.getVideosInCategory(categoryID).then(videosInCategory => {
+        const videosInCategoryJSON = JSON.stringify(Array.from(videosInCategory), function (key, value) {
+            if (key == "category") {
+                return undefined;
+            }
+            return value;
+        });
+        res.status(OK).send(videosInCategoryJSON);
+    }).catch(error => {
+        log_1.logger.error("Error retrieving videos in category " + categoryID + " : " + error);
         res.status(INT_ERROR).json({ "error": error });
     });
 });

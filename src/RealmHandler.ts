@@ -208,6 +208,19 @@ export function getVideoWithID(primaryKey:string):Promise<Video | undefined>{
 	});
 }
 
+// Return all videos that have the specified category
+export function getVideosInCategory(categoryId:string){
+    return openRealm().then(realm=>{
+        const category = realm.objectForPrimaryKey<VideoCategory>(VideoCategory.schema.name,categoryId);
+        if (category){
+            const videos = realm.objects<Video>(Video.schema.name);
+            return videos.filtered("category == $0",category);
+        } else {
+            throw Error("Invalid categoryID: "+categoryId);
+        }
+    });
+}
+
 // Create a new video category
 export function addVideoCategory(id:string,name:string,isYouTubeCategory:boolean):Promise<void>{
     return new Promise((resolve, reject)=>{
