@@ -45,8 +45,9 @@ export function videoDetails(videoId:string){
     return YouTube.videos.list({part:'snippet',id:videoId}).then(matchingVideosResp=>{
         const matchingVideos = matchingVideosResp.data.items;
         if (matchingVideos && matchingVideos.length > 0){
-            if (matchingVideos[0].snippet){
-                return matchingVideos[0].snippet;
+            const snippet = matchingVideos[0].snippet;
+            if (snippet){
+                return snippet;
             } else {
                 throw Error("No snippet returned for video "+videoId);
             }

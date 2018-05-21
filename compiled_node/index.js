@@ -11,6 +11,7 @@ const fs = require("fs");
 const cacheManager = require("./CacheManager");
 const log_1 = require("./log");
 const YouTubeBrowser = require("./YouTubeBrowser");
+const RealmHandler_1 = require("./RealmHandler");
 // Create Express app and set its port to 3000 by default
 var app = express();
 app.set('port', process.env.PORT || 3000);
@@ -22,25 +23,68 @@ const CREATED = 201;
 const BAD_REQ = 400; // Request is malformed - bad syntax, missing parameters
 const UNAUTH = 401; // Unauthorized - no or incorrect auth header
 const INT_ERROR = 500; // Internal server error
-realmHandler.performMigration().then(() => {
-    return realmHandler.getUsers();
-}).then(fetchedUsers => {
-    exports.users = fetchedUsers;
-    // Repeat the push notification at the set interval
-    setInterval(() => {
-        // Send a push notification to all users to generate a new UserLog
-        cacheManager.sendNetwAvailReqPushToAll(exports.users);
-    }, cacheManager.userLogRequestInterval);
-    return Promise.all([YouTubeBrowser.videoCategories, realmHandler.getVideoCategories()]);
-}).then(categoriesYouTubeAndSaved => {
-    const existingCategories = categoriesYouTubeAndSaved["1"];
-    const youTubeCategories = categoriesYouTubeAndSaved["0"];
-    const newYouTubeCategories = youTubeCategories.filter(ytCat => existingCategories.filtered("id == $0", ytCat.id).length == 0);
-    log_1.logger.info("Found " + newYouTubeCategories.length + " new YouTube video categories, saving them to Realm");
-    return realmHandler.addVideoCategories(newYouTubeCategories);
-}).catch(error => {
-    log_1.logger.error(error);
-});
+// Do stuff that needs to happen once, at the start of the server
+function executeStartupTasks() {
+    let youTubeCategories;
+    let videoCategories;
+    let videos;
+    let uncategorizedVideos;
+    let realm;
+    log_1.logger.info("Startup tasks executing");
+    return realmHandler.performMigration().then(openRealm => {
+        realm = openRealm;
+        return realmHandler.getUsers();
+    }).then(fetchedUsers => {
+        exports.users = fetchedUsers;
+        // Repeat the push notification at the set interval
+        setInterval(() => {
+            // Send a push notification to all users to generate a new UserLog
+            cacheManager.sendNetwAvailReqPushToAll(exports.users);
+        }, cacheManager.userLogRequestInterval);
+        // Get YouTube categories from the API and the already saved ones from Realm
+        return YouTubeBrowser.videoCategories;
+    }).then(fetchedYouTubeCategories => {
+        videoCategories = realm.objects(RealmHandler_1.VideoCategory.schema.name);
+        youTubeCategories = fetchedYouTubeCategories;
+        // Filter the fetched categories from YouTube to only keep the ones that haven't already been added to Realm
+        const newYouTubeCategories = youTubeCategories.filter(ytCat => videoCategories.filtered("id == $0", ytCat.id).length == 0);
+        log_1.logger.info("Found " + newYouTubeCategories.length + " new YouTube video categories, saving them to Realm");
+        // Add the new YouTube categories to Realm and retrieve the existing videos
+        return realmHandler.addVideoCategories(newYouTubeCategories);
+    }).then(() => {
+        videos = realm.objects(RealmHandler_1.Video.schema.name);
+        uncategorizedVideos = videos.filtered("category == null");
+        log_1.logger.info("Found " + uncategorizedVideos.length + " videos with no category");
+        // Fetch the category for each Video that doesn't have one yet
+        return Promise.all(uncategorizedVideos.map(video => YouTubeBrowser.videoDetails(video.youtubeID)));
+    }).then(snippets => {
+        log_1.logger.debug("Number of snippets returned: " + snippets.length);
+        log_1.logger.debug("Number of uncategorized videos: " + uncategorizedVideos.length);
+        const uncategorizedVideosArray = Array.from(uncategorizedVideos);
+        return new Promise((resolve, reject) => {
+            try {
+                realm.write(() => {
+                    for (let i = 0; i < uncategorizedVideosArray.length; i++) {
+                        log_1.logger.debug("Adding category to " + uncategorizedVideosArray[i].title);
+                        const categoryId = snippets[i].categoryId;
+                        if (categoryId) {
+                            const youTubeCategory = realm.objectForPrimaryKey(RealmHandler_1.VideoCategory.schema.name, categoryId);
+                            //youTubeCategory must exist, since all new caterogies were already saved to Realm previously
+                            uncategorizedVideosArray[i].category = youTubeCategory;
+                        }
+                        else {
+                            log_1.logger.warn("No categoryId returned from videoDetails for video " + uncategorizedVideosArray[i].youtubeID);
+                        }
+                    }
+                    resolve();
+                });
+            }
+            catch (error) {
+                reject(error);
+            }
+        });
+    });
+}
 // Register new userID
 app.post('/register', function (req, res) {
     let userID = req.body.userID;
@@ -445,5 +489,7 @@ app.use(function (req, res) {
     res.status(404).json({ "error": "Invalid endpoint" });
 });
 // Start the server
-app.listen(3000, () => log_1.logger.info('Cache manager listening on port 3000!'));
+executeStartupTasks().then(() => {
+    app.listen(3000, () => log_1.logger.info('Cache manager listening on port 3000!'));
+}).catch(error => log_1.logger.error("Error during startup tasks:" + error));
 //# sourceMappingURL=index.js.map

@@ -46,6 +46,7 @@ function uploadVideo(youtubeUrl, youtubeID) {
         //console.log(Object.getOwnPropertyNames(info));
         const thumbnailPath = path.join(thumbnailsDir, youtubeID + '.jpg');
         const videoPath = path.join(videosDir, youtubeID + '.mp4');
+        // TODO: fetch video category from YouTube and save that as well
         // Add video to Realm
         realmHandler.addVideo(info.id, info.title, videoPath, thumbnailPath);
         // Save downloaded video

@@ -11,6 +11,9 @@ import fs = require('fs');
 import cacheManager = require('./CacheManager');
 import {logger} from "./log";
 import YouTubeBrowser = require('./YouTubeBrowser');
+import { VideoCategory, Video } from "./RealmHandler";
+import { youtube_v3 } from "googleapis";
+import { Results } from "realm";
 
 // Create Express app and set its port to 3000 by default
 var app = express();
@@ -28,29 +31,65 @@ const INT_ERROR = 500;  // Internal server error
 
 // Autoupdating Results instance storing all Users
 export let users: Realm.Results<realmHandler.User>;
-// Do stuff that needs to happen once, at the start of the setver
-realmHandler.performMigration().then( () => {
-    return realmHandler.getUsers();
-}).then(fetchedUsers => {
-    users = fetchedUsers;
-    // Repeat the push notification at the set interval
-	  setInterval( () => {
-		    // Send a push notification to all users to generate a new UserLog
-		    cacheManager.sendNetwAvailReqPushToAll(users!);
-	  },cacheManager.userLogRequestInterval);
-    // Get YouTube categories from the API and the already saved ones from Realm
-    return Promise.all([YouTubeBrowser.videoCategories,realmHandler.getVideoCategories()]);
-}).then(categoriesYouTubeAndSaved=>{
-    const existingCategories = categoriesYouTubeAndSaved["1"];
-    const youTubeCategories = categoriesYouTubeAndSaved["0"];
-    // Filter the fetched categories from YouTube to only keep the ones that haven't already been added to Realm
-    const newYouTubeCategories = youTubeCategories.filter(ytCat=>existingCategories.filtered("id == $0",ytCat.id).length == 0);
-    logger.info("Found "+newYouTubeCategories.length+" new YouTube video categories, saving them to Realm");
-    // Add the new YouTube categories to Realm
-    return realmHandler.addVideoCategories(newYouTubeCategories);
-}).catch(error => {
-    logger.error(error);
-});
+// Do stuff that needs to happen once, at the start of the server
+function executeStartupTasks(){
+    let youTubeCategories:youtube_v3.Schema$VideoCategory[];
+    let videoCategories:Results<realmHandler.VideoCategory>;
+    let videos:Results<realmHandler.Video>;
+    let uncategorizedVideos:Results<realmHandler.Video>;
+    let realm:Realm;
+    logger.info("Startup tasks executing");
+    return realmHandler.performMigration().then( openRealm => {
+        realm = openRealm;
+        return realmHandler.getUsers();
+    }).then(fetchedUsers => {
+        users = fetchedUsers;
+        // Repeat the push notification at the set interval
+          setInterval( () => {
+                // Send a push notification to all users to generate a new UserLog
+                cacheManager.sendNetwAvailReqPushToAll(users!);
+          },cacheManager.userLogRequestInterval);
+        // Get YouTube categories from the API and the already saved ones from Realm
+        return YouTubeBrowser.videoCategories;
+    }).then(fetchedYouTubeCategories=>{
+        videoCategories = realm.objects<VideoCategory>(VideoCategory.schema.name);
+        youTubeCategories = fetchedYouTubeCategories;
+        // Filter the fetched categories from YouTube to only keep the ones that haven't already been added to Realm
+        const newYouTubeCategories = youTubeCategories.filter(ytCat=>videoCategories.filtered("id == $0",ytCat.id).length == 0);
+        logger.info("Found "+newYouTubeCategories.length+" new YouTube video categories, saving them to Realm");
+        // Add the new YouTube categories to Realm and retrieve the existing videos
+        return realmHandler.addVideoCategories(newYouTubeCategories);
+    }).then(()=>{
+        videos = realm.objects<Video>(Video.schema.name);
+        uncategorizedVideos = videos.filtered("category == null");
+        logger.info("Found "+uncategorizedVideos.length+" videos with no category");
+        // Fetch the category for each Video that doesn't have one yet
+        return Promise.all(uncategorizedVideos.map(video=>YouTubeBrowser.videoDetails(video.youtubeID)));
+    }).then(snippets=>{
+        // Iterating through the Results (uncategorizedVideos) would fuck up matching indexes with snippets, since when a category is added to a video, the Results instance is updated, so need a non-updating Array to iterate through
+        const uncategorizedVideosArray = Array.from(uncategorizedVideos);
+        return new Promise((resolve,reject)=>{
+            try {
+                realm.write(()=>{
+                    for (let i=0;i<uncategorizedVideosArray.length;i++){
+                        logger.debug("Adding category to "+uncategorizedVideosArray[i].title);
+                        const categoryId = snippets[i].categoryId;
+                        if (categoryId){
+                            const youTubeCategory = realm.objectForPrimaryKey<VideoCategory>(VideoCategory.schema.name,categoryId);
+                            //youTubeCategory must exist, since all new caterogies were already saved to Realm previously
+                            uncategorizedVideosArray[i].category = youTubeCategory!;
+                        } else {
+                            logger.warn("No categoryId returned from videoDetails for video "+uncategorizedVideosArray[i].youtubeID);
+                        }
+                    }
+                    resolve();
+                });
+            } catch (error) {
+                reject(error);
+            }
+        });
+    });
+}
 
 // Register new userID
 app.post('/register', function(req,res){
@@ -444,5 +483,7 @@ app.use(function(req,res){
 });
 
 // Start the server
-app.listen(3000, () => logger.info('Cache manager listening on port 3000!'));
+executeStartupTasks().then(()=>{
+    app.listen(3000, () => logger.info('Cache manager listening on port 3000!'));
+}).catch(error=>logger.error("Error during startup tasks:"+error));
 

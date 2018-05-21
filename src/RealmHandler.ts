@@ -1,6 +1,6 @@
 import Realm = require('realm');
 import { Results } from 'realm';
-import { youtube_v3 } from 'googleapis'; //TODO: can probably be deleted, not used in the end
+import { youtube_v3 } from 'googleapis';
 
 export class Video {
     public static schema: Realm.ObjectSchema = {
@@ -155,7 +155,7 @@ export function performMigration(){
             }
             //Realm will handle the migration itself
         }
-    })
+    });
 }
 
 // Return an opened Realm instance
