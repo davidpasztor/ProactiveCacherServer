@@ -4,7 +4,6 @@ const apn = require("apn");
 const path = require("path");
 const Recommender = require("likely");
 const log_1 = require("./log");
-const RealmHandler_1 = require("./RealmHandler");
 const options = {
     token: {
         key: path.join(__dirname, '..', 'APNs', 'AuthKey_BZXD7BPD72.p8'),
@@ -22,7 +21,7 @@ let myDeviceToken = "8dfbc6124ec07f151b5d79c6c7a5273e2f444f696f797c215b293bfedbe
 let iPadDeviceToken = "bc1e740eb300df5fc8e74f4d50e5644024f55a5254e95bdd122a9eb6e0dd99ad";
 // Send a push notification to request a UserLog object this often
 exports.userLogRequestInterval = 15 * 60 * 1000; // 15 minutes in milliseconds
-// Send a push notification to the specified device token to request the 
+// Send a push notification to the specified device token to request the
 // creation of a UserLog object and hence check network availability
 function sendNetworkAvailabilityReqPush(deviceToken) {
     let notification = new apn.Notification();
@@ -34,7 +33,7 @@ function sendNetworkAvailabilityReqPush(deviceToken) {
     notification.topic = bundleId;
     // Send the notification
     apnProvider.send(notification, deviceToken).then(result => {
-        // Show the result of the send operation: 
+        // Show the result of the send operation:
         log_1.logger.verbose("Network availability request push result: " + JSON.stringify(result));
     }).catch(error => {
         log_1.logger.error("Error sending network availability push request: " + error);
@@ -56,11 +55,13 @@ function sendNetwAvailReqPushToAll(users) {
             log_1.logger.verbose("Failed sends: " + result.failed.length);
             for (let fail of result.failed) {
                 log_1.logger.warn("Push notification failed to " + fail.device + " with status " + fail.status + " and response " + JSON.stringify(fail.response));
-                if (fail.status == "400") {
+                /*
+                if (fail.status == "400"){
                     //Delete user if the deviceToken proved to be wrong
-                    log_1.logger.info("Deleting user " + user.userID + " due to error 400 - bad device token");
-                    RealmHandler_1.deleteUser(user);
+                    logger.info("Deleting user "+user.userID+" due to error 400 - bad device token");
+                    deleteUser(user);
                 }
+                */
             }
         }).catch(error => {
             log_1.logger.error("Error sending network availability push:" + error);
@@ -92,7 +93,7 @@ export function makeCachingDecision(user:User){
     // Fetch the AppUsageLog object from the previous day closest to, but later
     // than the current time and find the last UserLog where the user had wifi
     // connection --> content pushing needs to happen at that point in time
-    
+
     // Find the recommended movies for the user
     //var model = generatePredictedRatings(users,videos,currentRatings);
     //var recommendations = model.recommendations(user.userID);
@@ -114,7 +115,7 @@ export function makeCachingDecisionsV0(user:User,predictions){
     // predictions only contains videos that have not been rated by the user yet,
     // so no need to worry about filtering them, also client-side check is
     // already implemented to prevent downloading an already cached video
-    
+
     // Need to time this function call
     pushVideoToDevice(predictions[0][0],user.userID);
 }
@@ -133,7 +134,7 @@ function generatePredictedRatings(users, videos, currentRatings) {
     let rowLabels = users.map(user => user.userID);
     // Create the column labels (videoID)
     let columnLabels = videos.map(video => video.youtubeID);
-    // Create the input matrix in the form that rows represent users and columns 
+    // Create the input matrix in the form that rows represent users and columns
     // represent ratings for a specific movie by each user
     var ratingsMatrix = createMatrix(rowLabels.length, columnLabels.length);
     ratingsMatrix.forEach(row => row.fill(0)); // likely needs 0s for the non-rated videos

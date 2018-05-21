@@ -193,7 +193,7 @@ app.get('/videos', function (req, res) {
     realmHandler.getVideos().then(videos => {
         const videosJSON = JSON.stringify(Array.from(videos), function (key, value) {
             if (key == "category") {
-                return undefined;
+                return value.id;
             }
             return value;
         });
