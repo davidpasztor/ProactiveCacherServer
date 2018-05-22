@@ -193,7 +193,8 @@ app.get('/videos', function (req, res) {
     realmHandler.getVideos().then(videos => {
         const videosJSON = JSON.stringify(Array.from(videos), function (key, value) {
             if (key == "category") {
-                return value.id;
+                const category = value;
+                return { 'id': category.id, 'name': category.name };
             }
             return value;
         });
@@ -392,7 +393,7 @@ app.post('/applogs', function (req, res) {
         // Push content in an hour
         const contentPushingInterval = 3600 * 1000; // 1 hour in milliseconds
         const recommendedVideo = realm.objectForPrimaryKey(RealmHandler_1.Video.schema.name, predictions[0][0]);
-        log_1.logger.info("Recommended video for user " + userID + " is video " + JSON.stringify(recommendedVideo));
+        log_1.logger.info("Recommended video for user " + userID + " is video " + recommendedVideo.title);
         if (recommendedVideo) {
             setTimeout(() => {
                 log_1.logger.info("Pushing video " + recommendedVideo + " to device " + thisUser.userID);
@@ -404,8 +405,7 @@ app.post('/applogs', function (req, res) {
                     });
                 }
                 catch (e) {
-                    console.log(e);
-                    log_1.logger.error("Can't add video " + recommendedVideo + " to list of cached videos for user " + thisUser.userID + " due to " + e);
+                    log_1.logger.error("Can't add video " + recommendedVideo.title + " to list of cached videos for user " + thisUser.userID + " due to " + e);
                 }
             }, contentPushingInterval);
         }
