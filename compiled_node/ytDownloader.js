@@ -2,9 +2,9 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require("fs");
 const path = require("path");
-//import youtubedl = require('youtube-dl');
 const youtubedl = require("youtube-dl");
 const realmHandler = require("./RealmHandler");
+const log_1 = require("./log");
 const videosDir = path.join(__dirname, '..', 'storage', 'videos');
 const thumbnailsDir = path.join(__dirname, '..', 'storage', 'thumbnails');
 // Download the thumbnail image for a youtube video
@@ -46,14 +46,24 @@ function uploadVideo(youtubeUrl, youtubeID) {
         //console.log(Object.getOwnPropertyNames(info));
         const thumbnailPath = path.join(thumbnailsDir, youtubeID + '.jpg');
         const videoPath = path.join(videosDir, youtubeID + '.mp4');
-        // TODO: fetch video category from YouTube and save that as well
-        // Add video to Realm
-        realmHandler.addVideo(info.id, info.title, videoPath, thumbnailPath);
+        realmHandler.getVideoCategories().then(videoCategories => {
+            const category = videoCategories.filtered("name == $0", info.categories[0]);
+            // Add video to Realm
+            if (category.length > 0) {
+                realmHandler.addVideo(info.id, info.title, videoPath, thumbnailPath, category[0]);
+            }
+            else {
+                realmHandler.addVideo(info.id, info.title, videoPath, thumbnailPath);
+            }
+        }).catch(error => {
+            realmHandler.addVideo(info.id, info.title, videoPath, thumbnailPath);
+            log_1.logger.error(error);
+        });
         // Save downloaded video
         let fileStream = fs.createWriteStream(videoPath);
         video.pipe(fileStream);
         fileStream.on('finish', function () {
-            console.log("File " + youtubeID + ".mp4 saved");
+            log_1.logger.info("File " + youtubeID + ".mp4 saved");
         });
     });
 }
