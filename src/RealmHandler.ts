@@ -165,24 +165,28 @@ export function openRealm(){
 }
 
 // Create a new Video object in Realm with the given properties
-export function addVideo(id:string,title:string,filePath:string,thumbnailPath:string){
-    //TODO: modify the function to return a Promise just like all other Realm funcs
-	Realm.open({schema: allSchemas,schemaVersion: currentSchemaVersion}).then(realm => {
-		try {
-			realm.write( ()=>{
-				if (realm.objectForPrimaryKey('Video',id) == undefined) {
-					realm.create('Video',{youtubeID:id,title:title,filePath:
-						filePath,thumbnailPath:thumbnailPath,uploadDate:new Date()},true);
-				} else {
-					console.log('Video with id: '+id+' already exists');
-				}
-			});
-		} catch (e) {
-			console.log(e);
-		}
-	}).catch(error => {
-		console.log(error);
-	});
+export function addVideo(id:string,title:string,filePath:string,thumbnailPath:string,category?:VideoCategory){
+	return new Promise((resolve,reject)=>{
+        Realm.open({schema: allSchemas,schemaVersion: currentSchemaVersion}).then(realm => {
+            try {
+                realm.write( ()=>{
+                    if (realm.objectForPrimaryKey('Video',id) == undefined) {
+                        if (category){
+                            realm.create('Video',{youtubeID:id,title:title,filePath,category:category});
+                        } else {
+                            realm.create('Video',{youtubeID:id,title:title,filePath:filePath,thumbnailPath:thumbnailPath,uploadDate:new Date()},true);
+                        }
+                        resolve();
+                    } else {
+                        console.log('Video with id: '+id+' already exists');
+                        resolve();
+                    }
+                });
+            } catch (error) {
+                reject(error);
+            }
+        }).catch(error=>reject(error));
+    });
 }
 
 // Return all video objects from Realm as Result<Video> in a Promise

@@ -126,24 +126,30 @@ function openRealm() {
 }
 exports.openRealm = openRealm;
 // Create a new Video object in Realm with the given properties
-function addVideo(id, title, filePath, thumbnailPath) {
-    //TODO: modify the function to return a Promise just like all other Realm funcs
-    Realm.open({ schema: allSchemas, schemaVersion: currentSchemaVersion }).then(realm => {
-        try {
-            realm.write(() => {
-                if (realm.objectForPrimaryKey('Video', id) == undefined) {
-                    realm.create('Video', { youtubeID: id, title: title, filePath: filePath, thumbnailPath: thumbnailPath, uploadDate: new Date() }, true);
-                }
-                else {
-                    console.log('Video with id: ' + id + ' already exists');
-                }
-            });
-        }
-        catch (e) {
-            console.log(e);
-        }
-    }).catch(error => {
-        console.log(error);
+function addVideo(id, title, filePath, thumbnailPath, category) {
+    return new Promise((resolve, reject) => {
+        Realm.open({ schema: allSchemas, schemaVersion: currentSchemaVersion }).then(realm => {
+            try {
+                realm.write(() => {
+                    if (realm.objectForPrimaryKey('Video', id) == undefined) {
+                        if (category) {
+                            realm.create('Video', { youtubeID: id, title: title, filePath, category: category });
+                        }
+                        else {
+                            realm.create('Video', { youtubeID: id, title: title, filePath: filePath, thumbnailPath: thumbnailPath, uploadDate: new Date() }, true);
+                        }
+                        resolve();
+                    }
+                    else {
+                        console.log('Video with id: ' + id + ' already exists');
+                        resolve();
+                    }
+                });
+            }
+            catch (error) {
+                reject(error);
+            }
+        }).catch(error => reject(error));
     });
 }
 exports.addVideo = addVideo;
