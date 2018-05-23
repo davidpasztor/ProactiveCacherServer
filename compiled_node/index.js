@@ -20,6 +20,7 @@ app.use(bodyParser.json({ limit: '50mb' }));
 // HTTP status codes
 const OK = 200;
 const CREATED = 201;
+const ACCEPTED = 202;
 const BAD_REQ = 400; // Request is malformed - bad syntax, missing parameters
 const UNAUTH = 401; // Unauthorized - no or incorrect auth header
 const INT_ERROR = 500; // Internal server error
@@ -117,7 +118,7 @@ app.post('/storage', function (req, res) {
     }
     // No URL parameter in request body, send error response
     if (videoUrlString === undefined) {
-        res.status(BAD_REQ).json({ "error": "No URL in request" });
+        return res.status(BAD_REQ).json({ "error": "No URL in request" });
     }
     else {
         let videoUrl;
@@ -125,58 +126,39 @@ app.post('/storage', function (req, res) {
             videoUrl = new url_1.URL(videoUrlString);
         }
         catch (e) {
-            console.log(e);
+            log_1.logger.error(e);
             return res.status(BAD_REQ).json({ "error": "URL " + videoUrlString + " is not valid " + e });
         }
+        let youtubeIDregex;
+        let matches;
         if (videoUrl.host == "www.youtube.com" || videoUrl.host == "youtube.com") {
-            let youtubeIDregex = /\?v\=(\w+)/;
-            let matches = youtubeIDregex.exec(videoUrl.search);
-            if (matches !== null) {
-                let videoID = matches[1];
-                // Check if video is already on the server, only download it
-                // if it wasn't added before
-                realmHandler.getVideoWithID(videoID).then(video => {
-                    if (video === undefined) {
-                        ytDownloader.uploadVideo(videoUrlString, videoID);
-                        log_1.logger.info("Download of video " + videoID + " successfully started");
-                        res.status(206).json({ "success": "Download of " + videoUrl + " started" });
-                    }
-                    else {
-                        res.json({ "message": "Video is already saved on server" });
-                    }
-                }).catch(error => {
-                    log_1.logger.error("Couldn't check if video " + videoID + " already exists " + error);
-                    res.status(INT_ERROR).json({ "error": error });
-                });
-            }
-            else {
-                res.status(BAD_REQ).json({ "error": "Non-YouTube URL" });
-            }
+            youtubeIDregex = /\?v\=(\w+)/;
+            matches = youtubeIDregex.exec(videoUrl.search);
         }
         else if (videoUrl.host == "youtu.be") {
-            const youtubeIDregex = /\/(\w+)/;
-            const matches = youtubeIDregex.exec(videoUrl.pathname);
-            // TODO: this part is copied exactly from above, should rewrite function
-            if (matches !== null) {
-                let videoID = matches[1];
-                // Check if video is already on the server, only download it
-                // if it wasn't added before
-                realmHandler.getVideoWithID(videoID).then(video => {
-                    if (video === undefined) {
-                        ytDownloader.uploadVideo(videoUrlString, videoID);
-                        res.status(202).json({ "success": "Download of " + videoUrl + " started" });
-                    }
-                    else {
-                        res.json({ "message": "Video is already saved on server" });
-                    }
-                }).catch(error => {
-                    log_1.logger.error("Couldn't check if video " + videoID + " already exists " + error);
-                    res.status(INT_ERROR).json({ "error": error });
-                });
-            }
-            else {
-                res.status(BAD_REQ).json({ "error": "Invalid YouTube URL " + videoUrl });
-            }
+            youtubeIDregex = /\/(\w+)/;
+            matches = youtubeIDregex.exec(videoUrl.pathname);
+        }
+        else {
+            return res.status(BAD_REQ).json({ "error": "Non-YouTube URL" });
+        }
+        if (matches !== null) {
+            let videoID = matches[1];
+            // Check if video is already on the server, only download it
+            // if it wasn't added before
+            realmHandler.getVideoWithID(videoID).then(video => {
+                if (video === undefined) {
+                    ytDownloader.uploadVideo(videoUrlString, videoID);
+                    log_1.logger.info("Download of video " + videoID + " successfully started");
+                    res.status(ACCEPTED).json({ "success": "Download of " + videoUrl + " started" });
+                }
+                else {
+                    res.json({ "message": "Video is already saved on server" });
+                }
+            }).catch(error => {
+                log_1.logger.error("Couldn't check if video " + videoID + " already exists " + error);
+                res.status(INT_ERROR).json({ "error": error });
+            });
         }
         else {
             res.status(BAD_REQ).json({ "error": "Non-YouTube URL" });

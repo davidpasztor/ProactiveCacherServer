@@ -133,7 +133,7 @@ function addVideo(id, title, filePath, thumbnailPath, category) {
                 realm.write(() => {
                     if (realm.objectForPrimaryKey('Video', id) == undefined) {
                         if (category) {
-                            realm.create('Video', { youtubeID: id, title: title, filePath, category: category });
+                            realm.create('Video', { youtubeID: id, title: title, filePath: filePath, thumbnailPath: thumbnailPath, uploadDate: new Date(), category: category });
                         }
                         else {
                             realm.create('Video', { youtubeID: id, title: title, filePath: filePath, thumbnailPath: thumbnailPath, uploadDate: new Date() }, true);
