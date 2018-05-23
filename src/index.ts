@@ -14,7 +14,6 @@ import YouTubeBrowser = require('./YouTubeBrowser');
 import { Rating, User, VideoCategory, Video } from "./RealmHandler";
 import { youtube_v3 } from "googleapis";
 import { Results } from "realm";
-import { NextFunction } from "express-serve-static-core";
 
 // Create Express app and set its port to 3000 by default
 var app = express();
@@ -24,9 +23,9 @@ app.set('port',process.env.PORT || 3000);
 app.use(bodyParser.json({limit:'50mb'}));
 
 // HTTP status codes
-const OK = 200;
-const CREATED = 201;
-const ACCEPTED = 202;
+const OK = 200;         // Default success response
+const CREATED = 201;    // The request succeeded with the creation of a new resource
+const ACCEPTED = 202;   // Request is ok, but the server is processing, so can't return the data immediately (such as for uploadVideo)
 const BAD_REQ = 400;    // Request is malformed - bad syntax, missing parameters
 const UNAUTH = 401;     // Unauthorized - no or incorrect auth header
 const INT_ERROR = 500;  // Internal server error
@@ -95,9 +94,20 @@ function executeStartupTasks(){
 
 // Middleware for handling authentication
 app.use((req,res,next) => {
+    // No authentication required during registration
     if (req.path == "/register") {
         return next();
     }
+    // Only password required, no userID needed for downloading server files
+    if (req.path == "/realm" || req.path.startsWith("/serverlogs")){
+        let pw = req.query.password;
+        if (!pw || pw != "szezamTarulj"){
+            logger.warn("Trying to access the"+req.path+"endpoint without the correct password, password query parameter is: "+pw);
+            return res.status(UNAUTH).json({"error":"You don't have access to the "+req.path+"file!"});
+        }
+        return next();
+    }
+    // All other client requests require a valid userID
     let userID = req.path == "/stream" ? req.query.user : req.headers.user;
     let user = authenticatedUser(userID);
     if (!userID || !user){
@@ -109,6 +119,7 @@ app.use((req,res,next) => {
     next();
 });
 
+// Return the User with the corresponding username or undefined if there's no such user
 function authenticatedUser(userID:string):User | undefined{
     return users.filtered('userID == $0',userID)[0];
 }
@@ -291,13 +302,6 @@ app.get('/stream',function(req,res){
 
 // Rate a video
 app.post('/videos/rate', function(req,res){
-    /*
-    let userID = req.headers.user;
-    let thisUser = users.filtered('userID == $0',userID)[0];
-    if (!userID || !thisUser){
-        return res.status(UNAUTH).json({"error":"Invalid userID"});
-    }
-    */
     let thisUser = <User>res.locals.user;
     const videoID = req.body.videoID;
     const rating = req.body.rating;
@@ -327,13 +331,6 @@ app.post('/videos/rate', function(req,res){
 
 // Upload userlog
 app.post('/userlogs', function(req,res){
-    /*
-    let userID = req.headers.user;
-    let thisUser = users.filtered('userID == $0',userID);
-    if (!userID || !thisUser[0]){
-        return res.status(UNAUTH).json({"error":"Invalid userID"});
-    }
-    */
     let thisUser = <User>res.locals.user;
     // Parse userlog from request body, then save it to Realm
     let userLogs = req.body;
@@ -352,14 +349,6 @@ app.post('/userlogs', function(req,res){
 
 // Upload app usage logs
 app.post('/applogs', function(req,res){
-    /*
-    let userID = req.headers.user;
-    let matchingUsers = users.filtered('userID == $0',userID);
-    if (!userID || !matchingUsers[0]){
-        return res.status(UNAUTH).json({"error":"Invalid userID"});
-    }
-    let thisUser = matchingUsers[0];
-    */
     let thisUser = <User>res.locals.user;
     // Parse app usage logs from request body, then save it to Realm
     let appLogs = req.body;
@@ -441,11 +430,13 @@ app.get('/videos/categories/*',function(req,res){
 
 // Download the realm file from the server to inspect the data locally
 app.get('/realm', function(req,res){
+    /*
 	let pw = req.query.password;
 	if (!pw || pw != "szezamTarulj"){
 		logger.warn("Trying to access the /realm endpoint without the correct password, password query parameter is: "+pw);
 		return res.status(UNAUTH).json({"error":"You don't have access to the realm file!"});
 	}
+    */
 	logger.verbose("Downloading realm file");
 	fs.stat(Realm.defaultPath, function(err,stats){
 		if (err) {
@@ -465,11 +456,13 @@ app.get('/realm', function(req,res){
 
 // Download the log file (either error or all logs depending on parameter)
 app.get('/serverlogs/*', function(req,res){
+    /*
 	let pw = req.query.password;
 	if (!pw || pw != "szezamTarulj"){
 		logger.warn("Trying to access the /serverlogs endpoint without the correct password, password query parameter is: "+pw);
 		return res.status(UNAUTH).json({"error":"You don't have access to the logs file!"});
 	}
+    */
 	let requestedLog = req.params[0];
 	let filename:string;
     if (requestedLog == "error"){
