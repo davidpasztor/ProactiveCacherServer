@@ -85,6 +85,24 @@ function executeStartupTasks() {
         });
     });
 }
+// Middleware for handling authentication
+app.use((req, res, next) => {
+    if (req.path == "/register") {
+        return next();
+    }
+    //TODO: authentication doesn't work on stream endpoint, everywhere else its fine
+    let userID = req.path == "/stream" ? req.query.user : req.headers.user;
+    console.log(req.path);
+    console.log(userID);
+    if (!userID || !authenticatedUser(userID)) {
+        log_1.logger.warn("Unauthenticated user request to " + req.url + " with userID " + userID);
+        return res.status(UNAUTH).json({ "error": "Invalid userID" });
+    }
+    next();
+});
+function authenticatedUser(userID) {
+    return exports.users.filtered('userID == $0', userID)[0];
+}
 // Register new userID
 app.post('/register', function (req, res) {
     let userID = req.body.userID;
@@ -98,7 +116,6 @@ app.post('/register', function (req, res) {
                 log_1.logger.info("Registration successful for " + userID);
                 res.status(CREATED).json({ "message": "User " + userID + " successfully created" });
             }).catch(error => {
-                console.log("Couldn't create user" + error);
                 log_1.logger.error("Couldn't register user " + userID + " due to " + error);
                 res.status(INT_ERROR).json({ "error": error });
             });
@@ -112,10 +129,12 @@ app.post('/register', function (req, res) {
 // Upload youtube video to server
 app.post('/storage', function (req, res) {
     let videoUrlString = req.body.url;
+    /*
     let userID = req.headers.user;
-    if (!userID || !exports.users.filtered('userID == $0', userID).length) {
-        return res.status(UNAUTH).json({ "error": "Invalid userID" });
+    if (!userID || !users.filtered('userID == $0',userID).length){
+        return res.status(UNAUTH).json({"error":"Invalid userID"});
     }
+    */
     // No URL parameter in request body, send error response
     if (videoUrlString === undefined) {
         return res.status(BAD_REQ).json({ "error": "No URL in request" });
@@ -167,11 +186,13 @@ app.post('/storage', function (req, res) {
 });
 // Get a list of available videos
 app.get('/videos', function (req, res) {
+    /*
     let userID = req.headers.user;
-    if (!userID || !exports.users.filtered('userID == $0', userID).length) {
-        return res.status(UNAUTH).json({ "error": "Invalid userID" });
+    if (!userID || !users.filtered('userID == $0',userID).length){
+        return res.status(UNAUTH).json({"error":"Invalid userID"});
     }
-    log_1.logger.info("User " + userID + " registered, retrieving videos");
+    */
+    log_1.logger.info("User " + req.headers.user + " registered, retrieving videos");
     realmHandler.getVideos().then(videos => {
         const videosJSON = JSON.stringify(Array.from(videos), function (key, value) {
             if (key == "category") {
@@ -188,14 +209,16 @@ app.get('/videos', function (req, res) {
 });
 // Get thumbnail image for video
 app.get('/thumbnail', function (req, res) {
+    /*
     let userID = req.headers.user;
-    if (!userID || !exports.users.filtered('userID == $0', userID).length) {
-        return res.status(UNAUTH).json({ "error": "Invalid userID" });
+    if (!userID || !users.filtered('userID == $0',userID).length){
+        return res.status(UNAUTH).json({"error":"Invalid userID"});
     }
+    */
     let videoID = req.query.videoID;
     // Check that videoID is not undefined or null
     if (videoID !== undefined && videoID) {
-        log_1.logger.info("Thumbnail for video " + videoID + " requested by " + userID);
+        log_1.logger.info("Thumbnail for video " + videoID + " requested by " + req.headers.user);
         realmHandler.getVideoWithID(videoID).then(video => {
             if (video !== undefined && video.thumbnailPath) {
                 log_1.logger.info("Sending thumbnail");
@@ -219,15 +242,17 @@ app.get('/thumbnail', function (req, res) {
 app.get('/stream', function (req, res) {
     // Only for this endpoint userID should be query parameter to allow playing
     // the video in an AVPlayer using only the URL and not a URLRequest
+    /*
     let userID = req.query.user;
-    if (!userID || !exports.users.filtered('userID == $0', userID).length) {
-        return res.status(UNAUTH).json({ "error": "Invalid userID" });
+    if (!userID || !users.filtered('userID == $0',userID).length){
+        return res.status(UNAUTH).json({"error":"Invalid userID"});
     }
+    */
     let videoID = req.query.videoID;
     if (videoID !== undefined && videoID) {
         realmHandler.getVideoWithID(videoID).then(video => {
             if (video !== undefined && video.filePath !== null) {
-                log_1.logger.info("User " + userID + " requested video " + videoID);
+                log_1.logger.info("User " + req.query.user + " requested video " + videoID);
                 // Get size information of video
                 fs.stat(video.filePath, function (err, stats) {
                     if (err) {
@@ -290,7 +315,7 @@ app.get('/stream', function (req, res) {
 // Rate a video
 app.post('/videos/rate', function (req, res) {
     let userID = req.headers.user;
-    let thisUser = exports.users.filtered('userID == $0', userID);
+    let thisUser = exports.users.filtered('userID == $0', userID)[0];
     if (!userID || !thisUser) {
         return res.status(UNAUTH).json({ "error": "Invalid userID" });
     }
@@ -303,7 +328,7 @@ app.post('/videos/rate', function (req, res) {
         realmHandler.getVideoWithID(videoID).then(video => {
             if (video !== undefined) {
                 // Create rating
-                realmHandler.rateVideo(thisUser[0], video, rating).then(() => {
+                realmHandler.rateVideo(thisUser, video, rating).then(() => {
                     log_1.logger.info("Rating saved for video " + videoID + " by user " + userID);
                     res.status(CREATED).json({ "message": "Rating saved" });
                 }).catch(error => {
@@ -400,11 +425,13 @@ app.post('/applogs', function (req, res) {
 });
 // Get a list of available video categories
 app.get('/videos/categories', function (req, res) {
+    /*
     let userID = req.headers.user;
-    let matchingUsers = exports.users.filtered('userID == $0', userID);
-    if (!userID || !matchingUsers[0]) {
-        return res.status(UNAUTH).json({ "error": "Invalid userID" });
+    let matchingUsers = users.filtered('userID == $0',userID);
+    if (!userID || !matchingUsers[0]){
+        return res.status(UNAUTH).json({"error":"Invalid userID"});
     }
+    */
     realmHandler.getVideoCategories().then(videoCategories => {
         // JSON.stringify that's used by bodyparser cannot handle circular dependencies and there's one due to the video linkingObjects
         // videos can can be omitted by supplying an array of variable names to include in the JSON
@@ -417,11 +444,13 @@ app.get('/videos/categories', function (req, res) {
 });
 // Get all videos in a certain category
 app.get('/videos/categories/*', function (req, res) {
+    /*
     const userID = req.headers.user;
-    const matchingUsers = exports.users.filtered('userID == $0', userID);
-    if (!userID || !matchingUsers[0]) {
-        return res.status(UNAUTH).json({ "error": "Invalid userID" });
+    const matchingUsers = users.filtered('userID == $0',userID);
+    if (!userID || !matchingUsers[0]){
+        return res.status(UNAUTH).json({"error":"Invalid userID"});
     }
+    */
     const categoryID = req.params[0];
     realmHandler.getVideosInCategory(categoryID).then(videosInCategory => {
         const videosInCategoryJSON = JSON.stringify(Array.from(videosInCategory), function (key, value) {
@@ -500,10 +529,12 @@ app.get('/serverlogs/*', function (req, res) {
 });
 // Send 404 for all undefined paths
 app.use(function (req, res) {
+    /*
     let userID = req.headers.user;
-    if (!userID || !exports.users.filtered('userID == $0', userID).length) {
-        return res.status(UNAUTH).json({ "error": "Invalid userID for endpoint " + req.url });
+    if (!userID || !users.filtered('userID == $0',userID).length){
+        return res.status(UNAUTH).json({"error":"Invalid userID for endpoint "+req.url});
     }
+    */
     log_1.logger.warn("Request failed to " + req.url + ", that endpoint is not defined");
     res.status(404).json({ "error": "Invalid endpoint" + req.url });
 });
