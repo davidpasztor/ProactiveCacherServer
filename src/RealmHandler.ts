@@ -105,12 +105,16 @@ export class AppUsageLog {
         name: 'AppUsageLog',
         properties: {
             appOpeningTime: 'date',
-            watchedVideosCount: 'int'
+            watchedVideosCount: 'int',
+            watchedCachedVideosCount: 'int?',
+            notWatchedCachedVideosCount: 'int?'
         }
     }
 
     public appOpeningTime: Date;
     public watchedVideosCount: number;
+    public watchedCachedVideosCount: number | null;
+    public notWatchedCachedVideosCount: number | null;
 }
 
 export class User {
@@ -137,7 +141,7 @@ const allSchemas = [Video.schema,Rating.schema,BatteryStateLog.schema,
                     UserLocation.schema,UserLog.schema,AppUsageLog.schema,
                     User.schema,VideoCategory.schema];
 
-const currentSchemaVersion:number = 5;
+const currentSchemaVersion:number = 7;
 
 // Perform migration if needed, return the opened Realm instance in case of success
 export function performMigration(){

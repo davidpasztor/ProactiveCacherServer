@@ -78,7 +78,9 @@ AppUsageLog.schema = {
     name: 'AppUsageLog',
     properties: {
         appOpeningTime: 'date',
-        watchedVideosCount: 'int'
+        watchedVideosCount: 'int',
+        watchedCachedVideosCount: 'int?',
+        notWatchedCachedVideosCount: 'int?'
     }
 };
 exports.AppUsageLog = AppUsageLog;
@@ -99,7 +101,7 @@ exports.User = User;
 const allSchemas = [Video.schema, Rating.schema, BatteryStateLog.schema,
     UserLocation.schema, UserLog.schema, AppUsageLog.schema,
     User.schema, VideoCategory.schema];
-const currentSchemaVersion = 5;
+const currentSchemaVersion = 7;
 // Perform migration if needed, return the opened Realm instance in case of success
 function performMigration() {
     return Realm.open({

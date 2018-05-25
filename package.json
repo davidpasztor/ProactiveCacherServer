@@ -9,6 +9,7 @@
     "express": "^4.16.3",
     "googleapis": "^30.0.0",
     "likely": "^0.2.0",
+    "moment": "^2.22.1",
     "realm": "^2.6.0",
     "winston": "^3.0.0-rc5",
     "youtube-dl": "^1.12.2"
