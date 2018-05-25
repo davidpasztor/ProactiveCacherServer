@@ -430,13 +430,6 @@ app.get('/videos/categories/*',function(req,res){
 
 // Download the realm file from the server to inspect the data locally
 app.get('/realm', function(req,res){
-    /*
-	let pw = req.query.password;
-	if (!pw || pw != "szezamTarulj"){
-		logger.warn("Trying to access the /realm endpoint without the correct password, password query parameter is: "+pw);
-		return res.status(UNAUTH).json({"error":"You don't have access to the realm file!"});
-	}
-    */
 	logger.verbose("Downloading realm file");
 	fs.stat(Realm.defaultPath, function(err,stats){
 		if (err) {
@@ -456,13 +449,6 @@ app.get('/realm', function(req,res){
 
 // Download the log file (either error or all logs depending on parameter)
 app.get('/serverlogs/*', function(req,res){
-    /*
-	let pw = req.query.password;
-	if (!pw || pw != "szezamTarulj"){
-		logger.warn("Trying to access the /serverlogs endpoint without the correct password, password query parameter is: "+pw);
-		return res.status(UNAUTH).json({"error":"You don't have access to the logs file!"});
-	}
-    */
 	let requestedLog = req.params[0];
 	let filename:string;
     if (requestedLog == "error"){
