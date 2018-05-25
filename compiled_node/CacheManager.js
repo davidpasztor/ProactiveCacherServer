@@ -4,6 +4,7 @@ const apn = require("apn");
 const path = require("path");
 const Recommender = require("likely");
 const log_1 = require("./log");
+const moment = require("moment");
 const options = {
     token: {
         key: path.join(__dirname, '..', 'APNs', 'AuthKey_BZXD7BPD72.p8'),
@@ -98,28 +99,40 @@ export function makeCachingDecision(user:User){
     //var model = generatePredictedRatings(users,videos,currentRatings);
     //var recommendations = model.recommendations(user.userID);
 }
-
+*/
 // Make a caching decision for a specific user - simply predict the next time
 // they'll have wifi access and push a random video that they haven't cached yet
-export function makeCachingDecisionsV0(user:User,predictions){
+function makeCachingDecisionsV0(user, predictions) {
     // UserLogs to use for network availability checking
-    let wifiAvailabilityLogs = user.logs.filter('networkStatus == "WiFi"');
+    let wifiAvailabilityLogs = user.logs.filtered('networkStatus == "WiFi"');
     // AppUsageLogs to predict the number of videos needed to be pushed and the
     // time of pushing (only care about logs where the user watched any videos)
-    let appUsageLogs = user.appUsageLogs.filter("watchedVideosCount > 0");
-
+    let appUsageLogs = user.appUsageLogs.filtered("watchedVideosCount > 0");
+    // Take the weighted average of the daily UserLogs
+    let initialValue = {};
+    // Group the UserLogs by day - key is the start of the day as an ISO Date string, value is an array of UserLogs made on that day
+    let dailyWifiAvailabilityLogs = wifiAvailabilityLogs.reduce((accumulator, currentValue) => {
+        const startOfDayString = moment(currentValue.timeStamp).startOf('day').toISOString();
+        accumulator[startOfDayString].push(currentValue);
+        return accumulator;
+    }, initialValue);
+    // Further group the logs - only keep a single UserLog in every `userLogRequestInterval` milliseconds (preferably the one that has "wifi" value)
     // predictions is an array in the form
     // [["label1",bestPredictedRating],...,["labelN",worstPredictedRating]], so
     // predictions[0][0] is the label (videoID) of the best recommendation
-
     // predictions only contains videos that have not been rated by the user yet,
     // so no need to worry about filtering them, also client-side check is
     // already implemented to prevent downloading an already cached video
-
-    // Need to time this function call
-    pushVideoToDevice(predictions[0][0],user.userID);
+    const bestPredictedLabel = predictions[0][0];
+    if (typeof bestPredictedLabel === "string") {
+        // Need to time this function call
+        pushVideoToDevice(bestPredictedLabel, user.userID);
+    }
+    else {
+        log_1.logger.error("predictions[0][0]=" + bestPredictedLabel + " is not a string");
+    }
 }
-*/
+exports.makeCachingDecisionsV0 = makeCachingDecisionsV0;
 // Helper function for creating an n-by-m matrix (2D array)
 function createMatrix(n, m) {
     var matrix = new Array(n);
