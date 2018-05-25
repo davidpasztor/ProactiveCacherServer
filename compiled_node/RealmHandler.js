@@ -375,4 +375,10 @@ function addAppLogsForUser(appLogs, user) {
     });
 }
 exports.addAppLogsForUser = addAppLogsForUser;
+function getAllAppLogs() {
+    return openRealm().then(realm => {
+        return realm.objects(AppUsageLog.schema.name);
+    });
+}
+exports.getAllAppLogs = getAllAppLogs;
 //# sourceMappingURL=RealmHandler.js.map

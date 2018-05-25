@@ -3,7 +3,7 @@ import fs = require('fs');
 import path = require('path');
 import Recommender = require('likely');
 import {logger} from "./log";
-import { User, Video, Rating, deleteUser, UserLog } from "./RealmHandler";
+import { User, Video, Rating, deleteUser, UserLog, AppUsageLog, getAllAppLogs } from "./RealmHandler";
 import moment = require('moment');
 
 const options = {
@@ -175,5 +175,29 @@ export function generatePredictedRatings(users:Realm.Results<User>,videos:Realm.
     // Build the model
     const model = Recommender.buildModel(ratingsMatrix, rowLabels, columnLabels);
 	return model;
+}
+
+// Calculate the hitrate of the cache manager as the ratio of the number of cached videos watched by each user and the total number of cached videos
+export function hitrateOfCacheManager(){
+    return getAllAppLogs().then(appLogs=>{
+        // Find all AppUsageLogs where a cached video was present on the device
+        let cacheEvents = appLogs.filtered('notWatchedCachedVideosCount != null OR watchedCachedVideosCount != null').filtered('notWatchedCachedVideosCount != 0 OR watchedCachedVideosCount != 0');
+        /*
+        // Calculate the hitrate of each AppUsageLog as the ratio of cached videos being watched and all cached videos
+        let hitratePerLog = cacheEvents.map(event=>{
+            return (event.watchedCachedVideosCount!)/(event.watchedCachedVideosCount!+event.notWatchedCachedVideosCount!);
+        });
+        // Get the average
+        let overallHitrate = hitratePerLog.reduce((currentSum,currentValue)=>{return currentSum+currentValue},0)/hitratePerLog.length;
+        return overallHitrate;
+        */
+        let goodCacheDecisions = 0;
+        let badCacheDecisions = 0;
+        for (let cacheEvent of cacheEvents){
+            goodCacheDecisions += cacheEvent.watchedCachedVideosCount!;
+            badCacheDecisions += cacheEvent.notWatchedCachedVideosCount!;
+        }
+        return goodCacheDecisions/(goodCacheDecisions+badCacheDecisions);
+    });
 }
 

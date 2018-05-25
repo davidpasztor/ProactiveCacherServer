@@ -404,3 +404,8 @@ export function addAppLogsForUser(appLogs:AppUsageLog[],user:User):Promise<void>
     });
 }
 
+export function getAllAppLogs(){
+    return openRealm().then(realm=>{
+        return realm.objects<AppUsageLog>(AppUsageLog.schema.name);
+    });
+}

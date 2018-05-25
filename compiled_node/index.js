@@ -92,7 +92,7 @@ app.use((req, res, next) => {
         return next();
     }
     // Only password required, no userID needed for downloading server files
-    if (req.path == "/realm" || req.path.startsWith("/serverlogs")) {
+    if (req.path == "/realm" || req.path.startsWith("/serverlogs") || req.path.startsWith("/cachemanager")) {
         let pw = req.query.password;
         if (!pw || pw != "szezamTarulj") {
             log_1.logger.warn("Trying to access the" + req.path + "endpoint without the correct password, password query parameter is: " + pw);
@@ -424,6 +424,15 @@ app.get('/videos/categories/*', function (req, res) {
     }).catch(error => {
         log_1.logger.error("Error retrieving videos in category " + categoryID + " : " + error);
         res.status(INT_ERROR).json({ "error": error });
+    });
+});
+app.get('/cachemanager/hitrate', function (req, res) {
+    cacheManager.hitrateOfCacheManager().then(hitrate => {
+        log_1.logger.info("Hitrate: " + hitrate);
+        res.json({ "hitrate": hitrate });
+    }).catch(error => {
+        log_1.logger.error("Error while calculating hitrate" + error);
+        res.json({ "error": error });
     });
 });
 // Download the realm file from the server to inspect the data locally
