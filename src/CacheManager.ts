@@ -120,15 +120,28 @@ export function makeCachingDecisionsV0(user:User,predictions:(number|string)[][]
 	// time of pushing (only care about logs where the user watched any videos)
 	let appUsageLogs = user.appUsageLogs.filtered("watchedVideosCount > 0");
 
-    // Take the weighted average of the daily UserLogs
-    let initialValue: {[key:string]:UserLog[]} = {};
-    // Group the UserLogs by day - key is the start of the day as an ISO Date string, value is an array of UserLogs made on that day
-    let dailyWifiAvailabilityLogs = wifiAvailabilityLogs.reduce((accumulator,currentValue)=>{
-        const startOfDayString = moment(currentValue.timeStamp).startOf('day').toISOString();
-        accumulator[startOfDayString].push(currentValue);
+    // Create a Date object from 00:00:00 today until 23:59:59 today at `userLogRequestInterval` millisecond intervals
+    let startOfToday = moment(new Date()).startOf('day').toDate();
+    let endOfToday = moment(startOfToday).endOf('day').toDate();
+    let timeSlots = [];
+    for (let time=startOfToday; time<endOfToday;time = new Date(time.getTime() + userLogRequestInterval)){
+        timeSlots.push(time);
+    }
+    // Group the UserLog objects based on which timeslot of the day they correspond to
+    // The outer index will be the same as the index of the corresponding timeslot in `timeSlots`
+    let initialValue:UserLog[][] = []; // Only needed to help the TS compiler infer the type of accumulator
+    let groupedWifiAvailabilityLogs = wifiAvailabilityLogs.reduce((accumulator,currentValue)=>{
+        // Calculate the difference in milliseconds between the first timeSlot (startOf('day')) and timeStamp
+        let diff = moment(currentValue.timeStamp).diff(moment(currentValue.timeStamp).startOf('day'))
+        // Find which timeslot should contain timeStamp
+        let timeSlotIndex = Math.floor(diff/userLogRequestInterval);
+        if (accumulator[timeSlotIndex] === undefined){
+            accumulator[timeSlotIndex] = [currentValue];
+        } else {
+            accumulator[timeSlotIndex].push(currentValue);
+        }
         return accumulator;
     },initialValue);
-    // Further group the logs - only keep a single UserLog in every `userLogRequestInterval` milliseconds (preferably the one that has "wifi" value)
 
 	// predictions is an array in the form
 	// [["label1",bestPredictedRating],...,["labelN",worstPredictedRating]], so
@@ -182,15 +195,6 @@ export function hitrateOfCacheManager(){
     return getAllAppLogs().then(appLogs=>{
         // Find all AppUsageLogs where a cached video was present on the device
         let cacheEvents = appLogs.filtered('notWatchedCachedVideosCount != null OR watchedCachedVideosCount != null').filtered('notWatchedCachedVideosCount != 0 OR watchedCachedVideosCount != 0');
-        /*
-        // Calculate the hitrate of each AppUsageLog as the ratio of cached videos being watched and all cached videos
-        let hitratePerLog = cacheEvents.map(event=>{
-            return (event.watchedCachedVideosCount!)/(event.watchedCachedVideosCount!+event.notWatchedCachedVideosCount!);
-        });
-        // Get the average
-        let overallHitrate = hitratePerLog.reduce((currentSum,currentValue)=>{return currentSum+currentValue},0)/hitratePerLog.length;
-        return overallHitrate;
-        */
         let goodCacheDecisions = 0;
         let badCacheDecisions = 0;
         for (let cacheEvent of cacheEvents){
