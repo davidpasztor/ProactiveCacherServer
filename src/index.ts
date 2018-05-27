@@ -42,6 +42,11 @@ function executeStartupTasks(){
     logger.info("Startup tasks executing");
     return realmHandler.performMigration().then( openRealm => {
         realm = openRealm;
+        realm.write(()=>{
+            let invalidRatings = realm.objects<Rating>(Rating.schema.name).filtered('user == null');
+            logger.debug('Deleting '+invalidRatings.length+' ratings with no user');
+            realm.delete(invalidRatings);
+        });
         return realmHandler.getUsers();
     }).then(fetchedUsers => {
         users = fetchedUsers;
@@ -368,7 +373,7 @@ app.post('/applogs', function(req,res){
 	  // Make a caching decision
 	  realmHandler.openRealm().then( realm => {
 		const videos = realm.objects<Video>(Video.schema.name);
-		const ratings = realm.objects<Rating>(Rating.schema.name);
+		const ratings = realm.objects<Rating>(Rating.schema.name).filtered("user != null");
 		const predictionsModel = cacheManager.generatePredictedRatings(users,videos,ratings);
 		const predictions = predictionsModel.recommendations(thisUser.userID);
 		console.log("Predictions: ");
