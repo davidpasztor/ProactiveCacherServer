@@ -107,12 +107,12 @@ export function makeCachingDecision(user:User){
 // they'll have wifi access and push a random video that they haven't cached yet
 function makeCachingDecisionsV0(user, recommendationModel) {
     // UserLogs to use for network availability checking
-    let wifiAvailabilityLogs = user.logs.filtered('networkStatus == "WiFi"');
+    let wifiAvailabilityLogs = user.logs;
     // AppUsageLogs to predict the number of videos needed to be pushed and the
     // time of pushing (only care about logs where the user watched any videos)
     let appUsageLogs = user.appUsageLogs.filtered("watchedVideosCount > 0");
     // Create a Date object from 00:00:00 today until 23:59:59 today at `userLogRequestInterval` millisecond intervals
-    let startOfToday = moment(new Date()).startOf('day').toDate();
+    let startOfToday = moment().startOf('day').toDate();
     let endOfToday = moment(startOfToday).endOf('day').toDate();
     let timeSlots = [];
     for (let time = startOfToday; time < endOfToday; time = new Date(time.getTime() + exports.userLogRequestInterval)) {
@@ -144,10 +144,10 @@ function makeCachingDecisionsV0(user, recommendationModel) {
         }, 0) / logsInTimeslot.length;
     });
     // Find the next timeslot from now
-    let nextTimeSlotIndex = Math.floor(moment(new Date()).diff(moment(new Date()).startOf('day')) / exports.userLogRequestInterval);
+    let nextTimeSlotIndex = Math.floor(moment().diff(moment().startOf('day')) / exports.userLogRequestInterval);
     // Find the next timeslot where the probability of WiFi is over the threshold
     let nextWifiTimeslotIndex = probabilityOfWifiInTimeslot.slice(nextTimeSlotIndex).findIndex(wifiProbability => wifiProbability > exports.wifiProbabilityThreshold);
-    if (nextWifiTimeslotIndex) {
+    if (nextWifiTimeslotIndex != -1) {
         // Since findIndex is called on the subarray probabilityOfWifiInTimeslot[nextTimeSlotIndex...], if a suitable timeslot was found, need to offset the index by `nextTimeSlotIndex` to get back the original index
         nextWifiTimeslotIndex += nextTimeSlotIndex;
     }
@@ -156,7 +156,7 @@ function makeCachingDecisionsV0(user, recommendationModel) {
         nextWifiTimeslotIndex = probabilityOfWifiInTimeslot.slice(0, nextTimeSlotIndex - 1).findIndex(wifiProbability => wifiProbability > exports.wifiProbabilityThreshold);
     }
     // If there's no optimal timeslot in the next 24 hours, simply try pushing content in the next slot
-    let optimalTimeForCaching = timeSlots[nextWifiTimeslotIndex == undefined ? nextTimeSlotIndex : nextWifiTimeslotIndex];
+    let optimalTimeForCaching = timeSlots[nextWifiTimeslotIndex == -1 ? nextTimeSlotIndex : nextWifiTimeslotIndex];
     // Since timeslots are for today, if the optimal time is after midnight, need to increase optimalTimeForCaching by 1 day
     if (optimalTimeForCaching < moment().toDate()) {
         optimalTimeForCaching.setDate(optimalTimeForCaching.getDate() + 1);
@@ -202,8 +202,8 @@ function generatePredictedRatings(users, videos, currentRatings) {
     currentRatings.forEach(rating => {
         ratingsMatrix[rowLabels.indexOf(rating.user.userID)][columnLabels.indexOf(rating.video.youtubeID)] = rating.score;
     });
-    console.log("Existing ratings:");
-    console.log(ratingsMatrix);
+    //console.log("Existing ratings:");
+    //console.log(ratingsMatrix);
     // Build the model
     const model = Recommender.buildModel(ratingsMatrix, rowLabels, columnLabels);
     return model;
