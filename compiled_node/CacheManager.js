@@ -23,6 +23,8 @@ let myDeviceToken = "8dfbc6124ec07f151b5d79c6c7a5273e2f444f696f797c215b293bfedbe
 let iPadDeviceToken = "bc1e740eb300df5fc8e74f4d50e5644024f55a5254e95bdd122a9eb6e0dd99ad";
 // Send a push notification to request a UserLog object this often
 exports.userLogRequestInterval = 15 * 60 * 1000; // 15 minutes in milliseconds
+// WiFi connection probability threshold for pushing content
+exports.wifiProbabilityThreshold = 0.5;
 // Send a push notification to the specified device token to request the
 // creation of a UserLog object and hence check network availability
 function sendNetworkAvailabilityReqPush(deviceToken) {
@@ -103,7 +105,7 @@ export function makeCachingDecision(user:User){
 */
 // Make a caching decision for a specific user - simply predict the next time
 // they'll have wifi access and push a random video that they haven't cached yet
-function makeCachingDecisionsV0(user, predictions) {
+function makeCachingDecisionsV0(user, recommendationModel) {
     // UserLogs to use for network availability checking
     let wifiAvailabilityLogs = user.logs.filtered('networkStatus == "WiFi"');
     // AppUsageLogs to predict the number of videos needed to be pushed and the
@@ -132,20 +134,43 @@ function makeCachingDecisionsV0(user, predictions) {
         }
         return accumulator;
     }, initialValue);
-    // predictions is an array in the form
-    // [["label1",bestPredictedRating],...,["labelN",worstPredictedRating]], so
-    // predictions[0][0] is the label (videoID) of the best recommendation
-    // predictions only contains videos that have not been rated by the user yet,
-    // so no need to worry about filtering them, also client-side check is
-    // already implemented to prevent downloading an already cached video
-    const bestPredictedLabel = predictions[0][0];
-    if (typeof bestPredictedLabel === "string") {
-        // Need to time this function call
-        pushVideoToDevice(bestPredictedLabel, user.userID);
+    //Calculate the probability of the user having WiFi connection in a specific timeslot by taking the average of all measurements in that timeslot
+    let probabilityOfWifiInTimeslot = groupedWifiAvailabilityLogs.map(logsInTimeslot => {
+        return logsInTimeslot.reduce((wifiProbability, thisLog) => {
+            if (thisLog.networkStatus == "WiFi") {
+                wifiProbability += 1;
+            }
+            return wifiProbability;
+        }, 0) / logsInTimeslot.length;
+    });
+    // Find the next timeslot from now
+    let nextTimeSlotIndex = Math.floor(moment(new Date()).diff(moment(new Date()).startOf('day')) / exports.userLogRequestInterval);
+    // Find the next timeslot where the probability of WiFi is over the threshold
+    let nextWifiTimeslotIndex = probabilityOfWifiInTimeslot.slice(nextTimeSlotIndex).findIndex(wifiProbability => wifiProbability > exports.wifiProbabilityThreshold);
+    if (nextWifiTimeslotIndex) {
+        // Since findIndex is called on the subarray probabilityOfWifiInTimeslot[nextTimeSlotIndex...], if a suitable timeslot was found, need to offset the index by `nextTimeSlotIndex` to get back the original index
+        nextWifiTimeslotIndex += nextTimeSlotIndex;
     }
     else {
-        log_1.logger.error("predictions[0][0]=" + bestPredictedLabel + " is not a string");
+        // If there's no suitable timeslot until the end of the day, check if there is the next day until the same time as now
+        nextWifiTimeslotIndex = probabilityOfWifiInTimeslot.slice(0, nextTimeSlotIndex - 1).findIndex(wifiProbability => wifiProbability > exports.wifiProbabilityThreshold);
     }
+    // If there's no optimal timeslot in the next 24 hours, simply try pushing content in the next slot
+    let optimalTimeForCaching = timeSlots[nextWifiTimeslotIndex == undefined ? nextTimeSlotIndex : nextWifiTimeslotIndex];
+    let millisecondsUntilOptimalTimeForCaching = moment(optimalTimeForCaching).diff(new Date());
+    // Need to time this function call
+    setTimeout(() => {
+        // Sort the predictions in descending order based on their predicted ratings
+        const recommendations = recommendationModel.recommendations(user.userID).sort(function (a, b) { return b[1] - a[1]; });
+        // predictions is an array in the form
+        // [["label1",bestPredictedRating],...,["labelN",worstPredictedRating]], so
+        // predictions[0][0] is the label (videoID) of the best recommendation
+        const bestPredictedLabel = recommendations[0][0];
+        // predictions only contains videos that have not been rated by the user yet,
+        // so no need to worry about filtering them, also client-side check is
+        // already implemented to prevent downloading an already cached video
+        pushVideoToDevice(bestPredictedLabel, user.userID);
+    }, millisecondsUntilOptimalTimeForCaching);
 }
 exports.makeCachingDecisionsV0 = makeCachingDecisionsV0;
 // Helper function for creating an n-by-m matrix (2D array)
