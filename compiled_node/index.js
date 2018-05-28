@@ -374,7 +374,8 @@ app.post('/applogs', function (req, res) {
         const videos = realm.objects(RealmHandler_1.Video.schema.name);
         const ratings = realm.objects(RealmHandler_1.Rating.schema.name).filtered("user != null");
         const predictionsModel = cacheManager.generatePredictedRatings(exports.users, videos, ratings);
-        const predictions = predictionsModel.recommendations(thisUser.userID);
+        // Sort the predictions in descending order based on their predicted ratings
+        const predictions = predictionsModel.recommendations(thisUser.userID).sort(function (a, b) { return b[1] - a[1]; });
         console.log("Predictions: ");
         console.log(predictions);
         // Push content in an hour
