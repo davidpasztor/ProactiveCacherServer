@@ -155,20 +155,25 @@ export function makeCachingDecisionsV0(user:User,recommendationModel:Recommender
     });
     // Find the next timeslot from now
     let nextTimeSlotIndex = Math.floor(moment().diff(moment().startOf('day'))/userLogRequestInterval);
+    console.log("Next time slot index: "+nextTimeSlotIndex);
     // Find the next timeslot where the probability of WiFi is over the threshold
     let nextWifiTimeslotIndex = probabilityOfWifiInTimeslot.slice(nextTimeSlotIndex).findIndex(wifiProbability=>wifiProbability>wifiProbabilityThreshold);
     if (nextWifiTimeslotIndex != -1){
         // Since findIndex is called on the subarray probabilityOfWifiInTimeslot[nextTimeSlotIndex...], if a suitable timeslot was found, need to offset the index by `nextTimeSlotIndex` to get back the original index
+        console.log("Next wifi timeslot is until midnight, modifying index from "+nextWifiTimeslotIndex);
         nextWifiTimeslotIndex += nextTimeSlotIndex;
+        console.log(" to "+nextWifiTimeslotIndex);
     } else {
         // If there's no suitable timeslot until the end of the day, check if there is the next day until the same time as now
         nextWifiTimeslotIndex = probabilityOfWifiInTimeslot.slice(0,nextTimeSlotIndex-1).findIndex(wifiProbability=>wifiProbability>wifiProbabilityThreshold);
+        console.log("Next wifi timeslot is after midnight, index: "+nextWifiTimeslotIndex);
     }
     // If there's no optimal timeslot in the next 24 hours, simply try pushing content in the next slot
     let optimalTimeForCaching = timeSlots[nextWifiTimeslotIndex == -1 ? nextTimeSlotIndex : nextWifiTimeslotIndex];
     // Since timeslots are for today, if the optimal time is after midnight, need to increase optimalTimeForCaching by 1 day
     if (optimalTimeForCaching < moment().toDate()){
         optimalTimeForCaching.setDate(optimalTimeForCaching.getDate()+1);
+        console.log("Optimal caching time was in the past, increasing it by 1 day to"+optimalTimeForCaching);
     }
     let millisecondsUntilOptimalTimeForCaching = moment(optimalTimeForCaching).diff(new Date());
     logger.info("Optimal time for caching for User "+user.userID+" calculated to be "+optimalTimeForCaching+",content pushing will happen in "+millisecondsUntilOptimalTimeForCaching/1000+" seconds");
