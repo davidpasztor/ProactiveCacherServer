@@ -370,11 +370,14 @@ app.post('/applogs', function(req,res){
         res.status(INT_ERROR).json({"error":error});
     });
     logger.info("Making a caching decision for user "+thisUser.userID);
-	  // Make a caching decision
-	  realmHandler.openRealm().then( realm => {
+    // Make a caching decision
+    realmHandler.openRealm().then( realm => {
 		const videos = realm.objects<Video>(Video.schema.name);
 		const ratings = realm.objects<Rating>(Rating.schema.name).filtered("user != null");
-		const predictionsModel = cacheManager.generatePredictedRatings(users,videos,ratings);
+	    const predictionsModel = cacheManager.generatePredictedRatings(users,videos,ratings);
+        cacheManager.makeCachingDecisionsV0(thisUser,predictionsModel);
+        /*
+	    const predictionsModel = cacheManager.generatePredictedRatings(users,videos,ratings);
           // Sort the predictions in descending order based on their predicted ratings
 		  const predictions = predictionsModel.recommendations(thisUser.userID).sort(function(a,b){return b[1]-a[1];});
 		console.log("Predictions: ");
@@ -399,6 +402,7 @@ app.post('/applogs', function(req,res){
 		} else {
 			console.log("Recommended video with ID "+predictions[0][0]+" not found in realm");
 		}
+        */
 	}).catch(error => {
 		logger.error("Can't open realm to retrieve prediction data "+error);
 	});

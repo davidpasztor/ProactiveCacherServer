@@ -157,11 +157,18 @@ function makeCachingDecisionsV0(user, recommendationModel) {
     }
     // If there's no optimal timeslot in the next 24 hours, simply try pushing content in the next slot
     let optimalTimeForCaching = timeSlots[nextWifiTimeslotIndex == undefined ? nextTimeSlotIndex : nextWifiTimeslotIndex];
+    // Since timeslots are for today, if the optimal time is after midnight, need to increase optimalTimeForCaching by 1 day
+    if (optimalTimeForCaching < moment().toDate()) {
+        optimalTimeForCaching.setDate(optimalTimeForCaching.getDate() + 1);
+    }
     let millisecondsUntilOptimalTimeForCaching = moment(optimalTimeForCaching).diff(new Date());
+    log_1.logger.info("Optimal time for caching for User " + user.userID + " calculated to be " + optimalTimeForCaching + ",content pushing will happen in " + millisecondsUntilOptimalTimeForCaching / 1000 + " seconds");
     // Need to time this function call
     setTimeout(() => {
         // Sort the predictions in descending order based on their predicted ratings
         const recommendations = recommendationModel.recommendations(user.userID).sort(function (a, b) { return b[1] - a[1]; });
+        console.log("Predicted ratings for user " + user.userID + ":");
+        console.log(recommendations);
         // predictions is an array in the form
         // [["label1",bestPredictedRating],...,["labelN",worstPredictedRating]], so
         // predictions[0][0] is the label (videoID) of the best recommendation
@@ -170,6 +177,7 @@ function makeCachingDecisionsV0(user, recommendationModel) {
         // so no need to worry about filtering them, also client-side check is
         // already implemented to prevent downloading an already cached video
         pushVideoToDevice(bestPredictedLabel, user.userID);
+        log_1.logger.info("Pushing video " + bestPredictedLabel + " to " + user.userID);
     }, millisecondsUntilOptimalTimeForCaching);
 }
 exports.makeCachingDecisionsV0 = makeCachingDecisionsV0;
