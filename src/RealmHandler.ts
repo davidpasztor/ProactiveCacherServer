@@ -1,6 +1,8 @@
 import Realm = require('realm');
 import { Results } from 'realm';
 import { youtube_v3 } from 'googleapis';
+import fs = require('fs');
+import { resolve } from 'path';
 
 export class Video {
     public static schema: Realm.ObjectSchema = {
@@ -214,6 +216,39 @@ export function getVideoWithID(primaryKey:string):Promise<Video | undefined>{
 			reject(error);
 		});
 	});
+}
+
+export function deleteVideoWithID(primaryKey:string){
+    return openRealm().then(realm=>{
+        const video = realm.objectForPrimaryKey<Video>(Video.schema.name,primaryKey);
+        if (video){
+            const removeVideoFilePromise = new Promise((resolve,reject)=>{
+                if (video.filePath){
+                    fs.unlink(video.filePath,(error)=>{
+                        if (error){
+                            reject(error);
+                        } else {
+                            resolve();
+                        }
+                    });
+                }
+            });
+            const removeThumbnailPromise = new Promise((resolve,reject)=>{
+                if (video.thumbnailPath){
+                    fs.unlink(video.thumbnailPath,(error)=>{
+                        if (error){
+                            reject(error);
+                        } else {
+                            resolve();
+                        }
+                    });
+                }
+            });
+            return Promise.all([removeVideoFilePromise,removeThumbnailPromise]).then(() => {return realm.write(()=>{realm.delete(video);})});
+        } else {
+            return Promise.reject("No video found with primaryKey "+primaryKey);
+        }
+    });
 }
 
 // Return all videos that have the specified category

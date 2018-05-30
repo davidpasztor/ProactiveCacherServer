@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const Realm = require("realm");
+const fs = require("fs");
 class Video {
 }
 Video.schema = {
@@ -178,6 +179,42 @@ function getVideoWithID(primaryKey) {
     });
 }
 exports.getVideoWithID = getVideoWithID;
+function deleteVideoWithID(primaryKey) {
+    return openRealm().then(realm => {
+        const video = realm.objectForPrimaryKey(Video.schema.name, primaryKey);
+        if (video) {
+            const removeVideoFilePromise = new Promise((resolve, reject) => {
+                if (video.filePath) {
+                    fs.unlink(video.filePath, (error) => {
+                        if (error) {
+                            reject(error);
+                        }
+                        else {
+                            resolve();
+                        }
+                    });
+                }
+            });
+            const removeThumbnailPromise = new Promise((resolve, reject) => {
+                if (video.thumbnailPath) {
+                    fs.unlink(video.thumbnailPath, (error) => {
+                        if (error) {
+                            reject(error);
+                        }
+                        else {
+                            resolve();
+                        }
+                    });
+                }
+            });
+            return Promise.all([removeVideoFilePromise, removeThumbnailPromise]).then(() => { return realm.write(() => { realm.delete(video); }); });
+        }
+        else {
+            return Promise.reject("No video found with primaryKey " + primaryKey);
+        }
+    });
+}
+exports.deleteVideoWithID = deleteVideoWithID;
 // Return all videos that have the specified category
 function getVideosInCategory(categoryId) {
     return openRealm().then(realm => {

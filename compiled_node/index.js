@@ -212,6 +212,21 @@ app.get('/videos', function (req, res) {
         res.status(INT_ERROR).json({ "error": error });
     });
 });
+// Delete video
+app.delete('/videos', function (req, res) {
+    let videoID = req.query.video;
+    if (videoID) {
+        realmHandler.deleteVideoWithID(videoID).then(() => {
+            res.json({ "success": "Video " + videoID + " successfully deleted" });
+        }).catch(error => {
+            log_1.logger.error("Error deleting video " + videoID + " : " + error);
+            res.status(INT_ERROR).json({ "error": error });
+        });
+    }
+    else {
+        res.status(BAD_REQ).json({ "error": "No videoID in delete video request" });
+    }
+});
 // Get thumbnail image for video
 app.get('/thumbnail', function (req, res) {
     let videoID = req.query.videoID;
