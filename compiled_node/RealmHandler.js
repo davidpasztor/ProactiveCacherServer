@@ -179,6 +179,7 @@ function getVideoWithID(primaryKey) {
     });
 }
 exports.getVideoWithID = getVideoWithID;
+// Delete Video object along with its files with corresponding ID if it exists
 function deleteVideoWithID(primaryKey) {
     return openRealm().then(realm => {
         const video = realm.objectForPrimaryKey(Video.schema.name, primaryKey);
@@ -207,7 +208,12 @@ function deleteVideoWithID(primaryKey) {
                     });
                 }
             });
-            return Promise.all([removeVideoFilePromise, removeThumbnailPromise]).then(() => { return realm.write(() => { realm.delete(video); }); });
+            return Promise.all([removeVideoFilePromise, removeThumbnailPromise]).then(() => {
+                return realm.write(() => {
+                    realm.delete(realm.objects(Rating.schema.name).filtered('video == $0', video));
+                    realm.delete(video);
+                });
+            });
         }
         else {
             return Promise.reject("No video found with primaryKey " + primaryKey);

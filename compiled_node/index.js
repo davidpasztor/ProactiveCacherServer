@@ -35,7 +35,7 @@ function executeStartupTasks() {
     return realmHandler.performMigration().then(openRealm => {
         realm = openRealm;
         realm.write(() => {
-            let invalidRatings = realm.objects(RealmHandler_1.Rating.schema.name).filtered('user == null');
+            let invalidRatings = realm.objects(RealmHandler_1.Rating.schema.name).filtered('user == null OR video == null');
             log_1.logger.debug('Deleting ' + invalidRatings.length + ' ratings with no user');
             realm.delete(invalidRatings);
         });
@@ -217,6 +217,7 @@ app.delete('/videos', function (req, res) {
     let videoID = req.query.video;
     if (videoID) {
         realmHandler.deleteVideoWithID(videoID).then(() => {
+            log_1.logger.info("Video " + videoID + " successfully deleted");
             res.json({ "success": "Video " + videoID + " successfully deleted" });
         }).catch(error => {
             log_1.logger.error("Error deleting video " + videoID + " : " + error);

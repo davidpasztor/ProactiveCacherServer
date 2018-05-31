@@ -43,8 +43,8 @@ function executeStartupTasks(){
     return realmHandler.performMigration().then( openRealm => {
         realm = openRealm;
         realm.write(()=>{
-            let invalidRatings = realm.objects<Rating>(Rating.schema.name).filtered('user == null');
-            logger.debug('Deleting '+invalidRatings.length+' ratings with no user');
+            let invalidRatings = realm.objects<Rating>(Rating.schema.name).filtered('user == null OR video == null');
+            logger.debug('Deleting '+invalidRatings.length+' ratings with no user or video');
             realm.delete(invalidRatings);
         });
         return realmHandler.getUsers();
