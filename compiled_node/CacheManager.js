@@ -219,13 +219,23 @@ function hitrateOfCacheManager() {
     return RealmHandler_1.getAllAppLogs().then(appLogs => {
         // Find all AppUsageLogs where a cached video was present on the device
         let cacheEvents = appLogs.filtered('notWatchedCachedVideosCount != null OR watchedCachedVideosCount != null').filtered('notWatchedCachedVideosCount != 0 OR watchedCachedVideosCount != 0');
+        // Calculate hitrate by summing up the good and bad caching decisions
         let goodCacheDecisions = 0;
         let badCacheDecisions = 0;
         for (let cacheEvent of cacheEvents) {
             goodCacheDecisions += cacheEvent.watchedCachedVideosCount;
             badCacheDecisions += cacheEvent.notWatchedCachedVideosCount;
         }
-        return goodCacheDecisions / (goodCacheDecisions + badCacheDecisions);
+        // Hitrate is the ratio of good decisions (cached video watched by the user) and all caching decisions (total number of cached videos)
+        let hitrate = goodCacheDecisions / (goodCacheDecisions + badCacheDecisions);
+        // Find the date range for the cache events
+        let startDate = cacheEvents.min('appOpeningTime');
+        let endDate = cacheEvents.max('appOpeningTime');
+        //TODO: Find the number of users with cached videos
+        // EITHER need access to all Users from Realm, iterate through them and check how many of them have 0+ AppLogs after applying the same filter as for cacheEvents
+        // OR add a linkingObject for `User` to `AppUsageLog` and simply count the number of unique `user`s on all `cacheEvents` --> probably requires more code modification
+        let performanceLog = { hitrate: hitrate, watchedCachedVideosCount: goodCacheDecisions, nonWatchedCachedVideosCount: badCacheDecisions, startDate: startDate, endDate: endDate };
+        return performanceLog;
     });
 }
 exports.hitrateOfCacheManager = hitrateOfCacheManager;
