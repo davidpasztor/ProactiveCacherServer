@@ -30,7 +30,7 @@ function getThumbnails(youtubeUrl, youtubeID) {
 exports.getThumbnails = getThumbnails;
 // Upload a Youtube video from the supplied link to the server without downloading
 // it to a device first
-function uploadVideo(youtubeUrl, youtubeID) {
+function uploadVideo(youtubeUrl, youtubeID, user, rating) {
     var video = youtubedl(youtubeUrl);
     // Download video thumbnail
     getThumbnails(youtubeUrl, youtubeID);
@@ -50,10 +50,20 @@ function uploadVideo(youtubeUrl, youtubeID) {
             const category = videoCategories.filtered("name == $0", info.categories[0]);
             // Add video to Realm
             if (category.length > 0) {
-                realmHandler.addVideo(info.id, info.title, videoPath, thumbnailPath, category[0]);
+                return realmHandler.addVideo(info.id, info.title, videoPath, thumbnailPath, category[0]);
             }
             else {
-                realmHandler.addVideo(info.id, info.title, videoPath, thumbnailPath);
+                return realmHandler.addVideo(info.id, info.title, videoPath, thumbnailPath);
+            }
+        }).then(() => {
+            if (user !== undefined && rating !== undefined) {
+                return realmHandler.getVideoWithID(info.id);
+            }
+            return undefined;
+        }).then(video => {
+            if (video) {
+                realmHandler.rateVideo(user, video, rating);
+                log_1.logger.info("Adding rating for video " + video.youtubeID + " while uploading it");
             }
         }).catch(error => {
             realmHandler.addVideo(info.id, info.title, videoPath, thumbnailPath);

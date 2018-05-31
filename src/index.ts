@@ -182,7 +182,13 @@ app.post('/storage', function(req,res){
             // if it wasn't added before
             realmHandler.getVideoWithID(videoID).then(video=>{
                 if (video === undefined){
-                    ytDownloader.uploadVideo(videoUrlString, videoID);
+                    const rating = req.body.rating;
+                    const thisUser = <User>res.locals.user;
+                    if (rating){
+                        ytDownloader.uploadVideo(videoUrlString, videoID,thisUser,rating);
+                    } else {
+                        ytDownloader.uploadVideo(videoUrlString,videoID);
+                    }
                     logger.info("Download of video "+videoID+" successfully started");
                     res.status(ACCEPTED).json({"success":"Download of " + videoUrl + " started"});
                 } else {
@@ -392,33 +398,6 @@ app.post('/applogs', function(req,res){
 		const ratings = realm.objects<Rating>(Rating.schema.name).filtered("user != null");
 	    const predictionsModel = cacheManager.generatePredictedRatings(users,videos,ratings);
         cacheManager.makeCachingDecisionsV0(thisUser,predictionsModel);
-        /*
-	    const predictionsModel = cacheManager.generatePredictedRatings(users,videos,ratings);
-          // Sort the predictions in descending order based on their predicted ratings
-		  const predictions = predictionsModel.recommendations(thisUser.userID).sort(function(a,b){return b[1]-a[1];});
-		console.log("Predictions: ");
-		console.log(predictions);
-		// Push content in an hour
-		const contentPushingInterval = 3600*1000;	// 1 hour in milliseconds
-		const recommendedVideo = realm.objectForPrimaryKey<Video>(Video.schema.name,predictions[0][0]);
-		logger.info("Recommended video for user "+thisUser.userID+" is video "+recommendedVideo!.title);
-		if (recommendedVideo){
-			setTimeout( () => {
-				logger.info("Pushing video "+recommendedVideo+" to device "+thisUser.userID);
-				console.log("Pushing content to device "+thisUser.userID+ " at " + new Date());
-				cacheManager.pushVideoToDevice(recommendedVideo.youtubeID,thisUser.userID);
-				try {
-					realm.write( () => {
-						thisUser.cachedVideos.push(recommendedVideo);
-					});
-				} catch (e) {
-					logger.error("Can't add video "+recommendedVideo.title+" to list of cached videos for user "+thisUser.userID+" due to "+e);
-				}
-			},contentPushingInterval);
-		} else {
-			console.log("Recommended video with ID "+predictions[0][0]+" not found in realm");
-		}
-        */
 	}).catch(error => {
 		logger.error("Can't open realm to retrieve prediction data "+error);
 	});
