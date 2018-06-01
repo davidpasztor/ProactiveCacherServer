@@ -434,11 +434,11 @@ app.get('/videos/categories/*',function(req,res){
 });
 
 app.get('/cachemanager/hitrate', function(req,res){
-    cacheManager.hitrateOfCacheManager().then(performanceLog=>{
+    cacheManager.hitrateOfCacheManager(users).then(performanceLog=>{
         logger.info(JSON.stringify(performanceLog));
         res.json(performanceLog);
     }).catch(error=>{
-        logger.error("Error while calculating hitrate"+error);
+        logger.error("Error while calculating hitrate "+error);
         res.json({"error":error});
     });
 });

@@ -215,7 +215,7 @@ function generatePredictedRatings(users, videos, currentRatings) {
 }
 exports.generatePredictedRatings = generatePredictedRatings;
 // Calculate the hitrate of the cache manager as the ratio of the number of cached videos watched by each user and the total number of cached videos
-function hitrateOfCacheManager() {
+function hitrateOfCacheManager(users) {
     return RealmHandler_1.getAllAppLogs().then(appLogs => {
         // Find all AppUsageLogs where a cached video was present on the device
         let cacheEvents = appLogs.filtered('notWatchedCachedVideosCount != null OR watchedCachedVideosCount != null').filtered('notWatchedCachedVideosCount != 0 OR watchedCachedVideosCount != 0');
@@ -234,7 +234,8 @@ function hitrateOfCacheManager() {
         //TODO: Find the number of users with cached videos
         // EITHER need access to all Users from Realm, iterate through them and check how many of them have 0+ AppLogs after applying the same filter as for cacheEvents
         // OR add a linkingObject for `User` to `AppUsageLog` and simply count the number of unique `user`s on all `cacheEvents` --> probably requires more code modification
-        let performanceLog = { hitrate: hitrate, watchedCachedVideosCount: goodCacheDecisions, nonWatchedCachedVideosCount: badCacheDecisions, startDate: startDate, endDate: endDate };
+        let usersWithCachedVideos = users.filtered("SUBQUERY(appUsageLogs,$log,$log.notWatchedCachedVideosCount != null OR $log.watchedCachedVideosCount != null).@count >0").filtered("SUBQUERY(appUsageLogs,$log,$log.notWatchedCachedVideosCount != 0 OR $log.watchedCachedVideosCount != 0).@count >0");
+        let performanceLog = { hitrate: hitrate, watchedCachedVideosCount: goodCacheDecisions, nonWatchedCachedVideosCount: badCacheDecisions, startDate: startDate, endDate: endDate, numberOfUsersWithCacheEvents: usersWithCachedVideos.length };
         return performanceLog;
     });
 }
