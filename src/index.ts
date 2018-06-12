@@ -432,7 +432,17 @@ app.get('/videos/categories/*',function(req,res){
 
 // Retrieve the performance logs of the Cache Manager
 app.get('/cachemanager/hitrate', function(req,res){
-    cacheManager.hitrateOfCacheManager(users).then(performanceLog=>{
+    let startDateString = <string | undefined>req.query.from;
+    let endDateString = <string | undefined>req.query.to;
+    let startDate = <Date | undefined>undefined;
+    let endDate = <Date | undefined>undefined;
+    if (startDateString){
+        startDate = new Date(startDateString);
+    }
+    if (endDateString){
+        endDate = new Date(endDateString);
+    }
+    cacheManager.hitrateOfCacheManager(users,startDate,endDate).then(performanceLog=>{
         logger.info(JSON.stringify(performanceLog));
         res.json(performanceLog);
     }).catch(error=>{

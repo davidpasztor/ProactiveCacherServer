@@ -227,11 +227,17 @@ export function generatePredictedRatings(users:Realm.Results<User>,videos:Realm.
 }
 
 // Calculate the hitrate of the cache manager as the ratio of the number of cached videos watched by each user and the total number of cached videos
-export function hitrateOfCacheManager(users:Realm.Results<User>){
+export function hitrateOfCacheManager(users:Realm.Results<User>,from?:Date,to?:Date){
     return getAllAppLogs().then(appLogs=>{
         // Find all AppUsageLogs where hitrate was already recorded
         let cacheEvents = appLogs.filtered('notWatchedCachedVideosCount != null OR watchedCachedVideosCount != null');
-        //.filtered('notWatchedCachedVideosCount != 0 OR watchedCachedVideosCount != 0');
+        // Filter the logs for a specific Date range
+        if (from != undefined){
+            cacheEvents = cacheEvents.filtered('appOpeningTime >= $0',from);
+        }
+        if (to != undefined){
+            cacheEvents = cacheEvents.filtered('appOpeningTime <= $0',to);
+        }
         // Calculate hitrate by summing up the good and bad caching decisions
         let goodCacheDecisions = 0;
         let badCacheDecisions = 0;

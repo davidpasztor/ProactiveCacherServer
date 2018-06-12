@@ -215,11 +215,17 @@ function generatePredictedRatings(users, videos, currentRatings) {
 }
 exports.generatePredictedRatings = generatePredictedRatings;
 // Calculate the hitrate of the cache manager as the ratio of the number of cached videos watched by each user and the total number of cached videos
-function hitrateOfCacheManager(users) {
+function hitrateOfCacheManager(users, from, to) {
     return RealmHandler_1.getAllAppLogs().then(appLogs => {
         // Find all AppUsageLogs where hitrate was already recorded
         let cacheEvents = appLogs.filtered('notWatchedCachedVideosCount != null OR watchedCachedVideosCount != null');
-        //.filtered('notWatchedCachedVideosCount != 0 OR watchedCachedVideosCount != 0');
+        // Filter the logs for a specific Date range
+        if (from != undefined) {
+            cacheEvents = cacheEvents.filtered('appOpeningTime >= $0', from);
+        }
+        if (to != undefined) {
+            cacheEvents = cacheEvents.filtered('appOpeningTime <= $0', to);
+        }
         // Calculate hitrate by summing up the good and bad caching decisions
         let goodCacheDecisions = 0;
         let badCacheDecisions = 0;
@@ -234,6 +240,7 @@ function hitrateOfCacheManager(users) {
         let hitrate = goodCacheDecisions / (goodCacheDecisions + badCacheDecisions);
         let totalWatchedVideosCount = goodCacheDecisions + reactivelyDeliveredVideosCount;
         let adjustedHitrate = hitrate - reactivelyDeliveredVideosCount / totalWatchedVideosCount;
+        let proactiveToReactiveDeliveryRate = (goodCacheDecisions + badCacheDecisions) / reactivelyDeliveredVideosCount;
         // Find the date range for the cache events
         let startDate = cacheEvents.min('appOpeningTime');
         let endDate = cacheEvents.max('appOpeningTime');
@@ -242,7 +249,7 @@ function hitrateOfCacheManager(users) {
         let performanceLog = {
             hitrate: hitrate,
             adjustedHitrate: adjustedHitrate,
-            proactiveToReactiveDeliveryRate: (goodCacheDecisions + badCacheDecisions) / reactivelyDeliveredVideosCount,
+            proactiveToReactiveDeliveryRate: proactiveToReactiveDeliveryRate,
             watchedCachedVideosCount: goodCacheDecisions,
             nonWatchedCachedVideosCount: badCacheDecisions,
             totalWatchedVideosCount: totalWatchedVideosCount,
