@@ -371,9 +371,6 @@ app.post('/userlogs', function(req,res){
     });
 });
 
-// TODO: once a new app usage log is uploaded, should make a caching decision for
-// the user who uploaded the log
-
 // Upload app usage logs
 app.post('/applogs', function(req,res){
     let thisUser = <User>res.locals.user;
@@ -433,6 +430,7 @@ app.get('/videos/categories/*',function(req,res){
     });
 });
 
+// Retrieve the performance logs of the Cache Manager
 app.get('/cachemanager/hitrate', function(req,res){
     cacheManager.hitrateOfCacheManager(users).then(performanceLog=>{
         logger.info(JSON.stringify(performanceLog));

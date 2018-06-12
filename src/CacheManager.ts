@@ -229,23 +229,41 @@ export function generatePredictedRatings(users:Realm.Results<User>,videos:Realm.
 // Calculate the hitrate of the cache manager as the ratio of the number of cached videos watched by each user and the total number of cached videos
 export function hitrateOfCacheManager(users:Realm.Results<User>){
     return getAllAppLogs().then(appLogs=>{
-        // Find all AppUsageLogs where a cached video was present on the device
-        let cacheEvents = appLogs.filtered('notWatchedCachedVideosCount != null OR watchedCachedVideosCount != null').filtered('notWatchedCachedVideosCount != 0 OR watchedCachedVideosCount != 0');
+        // Find all AppUsageLogs where hitrate was already recorded
+        let cacheEvents = appLogs.filtered('notWatchedCachedVideosCount != null OR watchedCachedVideosCount != null');
+        //.filtered('notWatchedCachedVideosCount != 0 OR watchedCachedVideosCount != 0');
         // Calculate hitrate by summing up the good and bad caching decisions
         let goodCacheDecisions = 0;
         let badCacheDecisions = 0;
+        // Calculate how many videos weren't cached before they were watched
+        let reactivelyDeliveredVideosCount = 0;
         for (let cacheEvent of cacheEvents){
             goodCacheDecisions += cacheEvent.watchedCachedVideosCount!;
             badCacheDecisions += cacheEvent.notWatchedCachedVideosCount!;
+            reactivelyDeliveredVideosCount += cacheEvent.watchedVideosCount - cacheEvent.watchedCachedVideosCount!;
         }
         // Hitrate is the ratio of good decisions (cached video watched by the user) and all caching decisions (total number of cached videos)
         let hitrate = goodCacheDecisions/(goodCacheDecisions+badCacheDecisions);
+        let totalWatchedVideosCount = goodCacheDecisions+reactivelyDeliveredVideosCount;
+        let adjustedHitrate = hitrate - reactivelyDeliveredVideosCount/totalWatchedVideosCount;
+        let proactiveToReactiveDeliveryRate = (goodCacheDecisions+badCacheDecisions)/reactivelyDeliveredVideosCount;
         // Find the date range for the cache events
         let startDate = cacheEvents.min('appOpeningTime');
         let endDate = cacheEvents.max('appOpeningTime');
         // Find all users who had cached videos
         let usersWithCachedVideos = users.filtered("SUBQUERY(appUsageLogs,$log,$log.notWatchedCachedVideosCount != null OR $log.watchedCachedVideosCount != null).@count >0").filtered("SUBQUERY(appUsageLogs,$log,$log.notWatchedCachedVideosCount != 0 OR $log.watchedCachedVideosCount != 0).@count >0");
-        let performanceLog = {hitrate:hitrate, watchedCachedVideosCount:goodCacheDecisions,nonWatchedCachedVideosCount:badCacheDecisions,startDate:startDate,endDate:endDate,numberOfUsersWithCacheEvents:usersWithCachedVideos.length};
+        let performanceLog = {
+            hitrate:hitrate,
+            adjustedHitrate:adjustedHitrate,
+            proactiveToReactiveDeliveryRate:proactiveToReactiveDeliveryRate,
+            watchedCachedVideosCount:goodCacheDecisions,
+            nonWatchedCachedVideosCount:badCacheDecisions,
+            totalWatchedVideosCount:totalWatchedVideosCount,
+            nonCachedWatchedVideosCount:reactivelyDeliveredVideosCount,
+            startDate:startDate,
+            endDate:endDate,
+            numberOfUsersWithCacheEvents:usersWithCachedVideos.length
+        };
         return performanceLog;
     });
 }
