@@ -12,6 +12,7 @@ const cacheManager = require("./CacheManager");
 const log_1 = require("./log");
 const YouTubeBrowser = require("./YouTubeBrowser");
 const RealmHandler_1 = require("./RealmHandler");
+const json2csv = require("json2csv");
 // Create Express app and set its port to 3000 by default
 var app = express();
 app.set('port', process.env.PORT || 3000);
@@ -100,8 +101,8 @@ app.use((req, res, next) => {
     if (req.path == "/realm" || req.path.startsWith("/serverlogs") || req.path.startsWith("/cachemanager")) {
         let pw = req.query.password;
         if (!pw || pw != "szezamTarulj") {
-            log_1.logger.warn("Trying to access the" + req.path + "endpoint without the correct password, password query parameter is: " + pw);
-            return res.status(UNAUTH).json({ "error": "You don't have access to the " + req.path + "file!" });
+            log_1.logger.warn("Trying to access the " + req.path + " endpoint without the correct password, password query parameter is: " + pw);
+            return res.status(UNAUTH).json({ "error": "You don't have access to the " + req.path + " file!" });
         }
         return next();
     }
@@ -448,6 +449,28 @@ app.get('/cachemanager/hitrate', function (req, res) {
         res.json({ "error": error });
     });
 });
+// Return csv data for plotting a graph of the daily variations in hitrate
+app.get('/cachemanager/hitrateGraph', function (req, res) {
+    let startDateString = req.query.from;
+    let endDateString = req.query.to;
+    let startDate = undefined;
+    let endDate = undefined;
+    if (startDateString) {
+        startDate = new Date(startDateString);
+    }
+    if (endDateString) {
+        endDate = new Date(endDateString);
+    }
+    cacheManager.hitrateGraph(exports.users, startDate, endDate).then(graph => {
+        const csv = json2csv.parse(graph);
+        res.set('Content-Type', 'application/csv');
+        res.set('Content-Disposition', 'attachment; filename=hitrateAgainstTime.csv');
+        res.send(new Buffer(csv));
+    }).catch(error => {
+        log_1.logger.error("Error plotting hitrate against time" + error);
+        res.json({ "error": error });
+    });
+});
 // Download the realm file from the server to inspect the data locally
 app.get('/realm', function (req, res) {
     log_1.logger.verbose("Downloading realm file");
@@ -503,7 +526,7 @@ app.get('/serverlogs/*', function (req, res) {
 // Send 404 for all undefined paths
 app.use(function (req, res) {
     log_1.logger.warn("Request failed to " + req.url + ", that endpoint is not defined");
-    res.status(404).json({ "error": "Invalid endpoint" + req.url });
+    res.status(404).json({ "error": "Invalid endpoint " + req.url });
 });
 // Start the server
 executeStartupTasks().then(() => {

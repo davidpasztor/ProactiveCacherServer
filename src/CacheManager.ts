@@ -238,6 +238,12 @@ export function hitrateOfCacheManager(users:Realm.Results<User>,from?:Date,to?:D
         if (to != undefined){
             cacheEvents = cacheEvents.filtered('appOpeningTime <= $0',to);
         }
+        return calculatePerformanceLogs(cacheEvents, users);
+    });
+}
+
+// Helper function doing the actual hitrate calculations, logic put into this function to enable calling it from both hitrateOfCacheManager and hitrateGraph
+function calculatePerformanceLogs(cacheEvents:Realm.Results<AppUsageLog>,users:Realm.Results<User>){
         // Calculate hitrate by summing up the good and bad caching decisions
         let goodCacheDecisions = 0;
         let badCacheDecisions = 0;
@@ -271,6 +277,21 @@ export function hitrateOfCacheManager(users:Realm.Results<User>,from?:Date,to?:D
             numberOfUsersWithCacheEvents:usersWithCachedVideos.length
         };
         return performanceLog;
-    });
 }
 
+// Plot hitrate of cache manager against time
+export function hitrateGraph(users:Realm.Results<User>,from?:Date,to?:Date){
+    return getAllAppLogs().then(appLogs=>{
+        // Find all AppUsageLogs where hitrate was already recorded
+        let cacheEvents = appLogs.filtered('notWatchedCachedVideosCount != null OR watchedCachedVideosCount != null');
+        // Filter the logs for a specific Date range
+        let startDate = from != undefined ? from : <Date>cacheEvents.min('appOpeningTime');
+        let endDate = to != undefined ? to : <Date>cacheEvents.max('appOpeningTime');
+        let dailyPerfLogs = [];
+        for (let time=startDate; time<endDate;time = moment(time).add(1,"day").toDate()){
+            let cacheEventsOfTheDay = cacheEvents.filtered('appOpeningTime >= $0 AND appOpeningTime <= $1',time,moment(time).add(1,"day").toDate());
+            dailyPerfLogs.push(calculatePerformanceLogs(cacheEventsOfTheDay,users));
+        }
+        return dailyPerfLogs;
+    });
+}
